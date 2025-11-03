@@ -27,57 +27,22 @@ import { CheckCircle2, Clock, Circle } from "lucide-react";
 
 // ---------- Mock (simulación de datos) ----------
 // En el futuro, esto vendrá de tu API usando el parámetro "op".
-type Estado = "done" | "in_progress" | "pending";
+type Estado = "pending" | "in_progress" | "done";
 
-type Paso = {
+interface ProcesoProyecto {
+  proceso: {
+    nombre: string;
+  };
+  tiempo: number | null; // DecimalField en Python se mapea a number en JS
+  estado: Estado; // El ENUM/ChoiceField de tu modelo Django
+}
+
+type DisplayPaso = {
   key: string;
   label: string;
-  minutos: number; // cuanto tardó (o estimado si pending)
+  minutos: number;
   estado: Estado;
 };
-
-type Pieza = {
-  op: string;
-  plano: string;
-  proyecto: string;
-  categoria?: "A" | "B" | "C";
-  procesos: Paso[];
-};
-
-// Simula un fetch por OP
-function getMockByOp(op: string): Pieza {
-  // Puedes ramificar por OP si quieres diferentes ejemplos
-  return {
-    op,
-    plano: "3272-A-001",
-    proyecto: "3272",
-    categoria: "B",
-    procesos: [
-      { key: "corte", label: "Corte", minutos: 18, estado: "done" },
-      {
-        key: "programacion",
-        label: "Programación CNC",
-        minutos: 25,
-        estado: "done",
-      },
-      {
-        key: "maquinado",
-        label: "Maquinado CNC",
-        minutos: 60,
-        estado: "in_progress",
-      },
-      { key: "paileria", label: "Pailería", minutos: 0, estado: "pending" },
-      { key: "pintura", label: "Pintura", minutos: 0, estado: "pending" },
-      {
-        key: "inspeccion",
-        label: "Inspección / Limpieza / Acabados",
-        minutos: 0,
-        estado: "pending",
-      },
-      { key: "calidad", label: "Calidad", minutos: 0, estado: "pending" },
-    ],
-  };
-}
 
 interface ProyectoQueryResult {
   proyecto: {
@@ -88,11 +53,12 @@ interface ProyectoQueryResult {
     material: string;
     categoria: string;
     operacion: string;
+    procesos: ProcesoProyecto[];
   } | null;
 }
 
 // ---------- Página ----------
-export default function PiezaDashboard({ params }: { params: { op: string } }) {
+export default function PiezaDashboard() {
   const { id } = useParams();
 
   const GET_DATOS = gql`
@@ -108,8 +74,9 @@ export default function PiezaDashboard({ params }: { params: { op: string } }) {
         procesos {
           proceso {
             nombre
-            tiempo
           }
+          tiempo
+          estado
         }
       }
     }
@@ -133,21 +100,32 @@ export default function PiezaDashboard({ params }: { params: { op: string } }) {
     console.log(proyecto);
   };
 
-  const pieza = useMemo(
-    () => getMockByOp(decodeURIComponent(params.op)),
-    [params.op]
-  );
+  const displayProcesos: DisplayPaso[] = useMemo(() => {
+    if (!proyecto || !proyecto.procesos) return [];
+
+    return proyecto.procesos.map((p, index) => ({
+      key: `${p.proceso.nombre}-${index}`,
+      label: p.proceso.nombre,
+      // Asegúrate de manejar `null` o convertir a `number`
+      minutos: p.tiempo ? parseFloat(p.tiempo.toString()) : 0,
+      estado: p.estado,
+    }));
+  }, [proyecto]);
 
   const totals = useMemo(() => {
-    const doneCount = pieza.procesos.filter((p) => p.estado === "done").length;
-    const inProgressCount = pieza.procesos.filter(
+    const doneCount = displayProcesos.filter((p) => p.estado === "done").length;
+    const inProgressCount = displayProcesos.filter(
       (p) => p.estado === "in_progress"
     ).length;
-    const totalSteps = pieza.procesos.length;
-    const completedRatio =
-      ((doneCount + inProgressCount * 0.5) / totalSteps) * 100;
+    const totalSteps = displayProcesos.length;
 
-    const spentMinutes = pieza.procesos
+    // Evita división por cero si no hay procesos
+    const completedRatio =
+      totalSteps > 0
+        ? ((doneCount + inProgressCount * 0.5) / totalSteps) * 100
+        : 0;
+
+    const spentMinutes = displayProcesos
       .filter((p) => p.estado === "done" || p.estado === "in_progress")
       .reduce((acc, p) => acc + p.minutos, 0);
 
@@ -156,9 +134,9 @@ export default function PiezaDashboard({ params }: { params: { op: string } }) {
       inProgressCount,
       totalSteps,
       completedRatio: Math.round(completedRatio),
-      spentMinutes,
+      spentMinutes: Math.round(spentMinutes), // Redondea los minutos totales
     };
-  }, [pieza]);
+  }, [displayProcesos]);
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -230,7 +208,7 @@ export default function PiezaDashboard({ params }: { params: { op: string } }) {
             <ul className="relative ml-3 mb-6">
               {/* Línea vertical */}
               <div className="absolute left-[10px] top-0 bottom-0 w-[2px] bg-border" />
-              {pieza.procesos.map((p) => {
+              {displayProcesos.map((p) => {
                 const icon =
                   p.estado === "done" ? (
                     <CheckCircle2 className="h-4 w-4" />
@@ -294,7 +272,7 @@ export default function PiezaDashboard({ params }: { params: { op: string } }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pieza.procesos.map((p, i) => (
+                {displayProcesos.map((p, i) => (
                   <TableRow key={p.key}>
                     <TableCell className="text-center">{i + 1}</TableCell>
                     <TableCell>{p.label}</TableCell>
