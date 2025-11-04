@@ -1,7 +1,7 @@
 "use client";
 
 import { gql } from "@apollo/client";
-import { useQuery } from "@apollo/client/react";
+import { useQuery, useSubscription } from "@apollo/client/react";
 import { useParams } from "react-router-dom";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
@@ -27,7 +27,7 @@ import { CheckCircle2, Clock, Circle } from "lucide-react";
 
 // ---------- Mock (simulación de datos) ----------
 // En el futuro, esto vendrá de tu API usando el parámetro "op".
-type Estado = "pending" | "in_progress" | "done";
+type Estado = "PENDING" | "IN_PROGRESS" | "DONE";
 
 interface ProcesoProyecto {
   proceso: {
@@ -94,6 +94,23 @@ export default function PiezaDashboard() {
 
   const proyecto = data?.proyecto;
 
+  const ESTADO_SUBSCRIPTION = gql`
+    subscription EstadoProcesoActualizado($proyectoId: ID!) {
+      estadoProcesoActualizado(proyectoId: $proyectoId) {
+        proceso {
+          nombre
+        }
+        tiempo
+        estado
+      }
+    }
+  `;
+
+  // En tu componente:
+  const { data: subData } = useSubscription(ESTADO_SUBSCRIPTION, {
+    variables: { proyectoId: id },
+  });
+
   const showData = () => {
     console.log(loading);
     console.log(error);
@@ -113,24 +130,24 @@ export default function PiezaDashboard() {
   }, [proyecto]);
 
   const totals = useMemo(() => {
-    const doneCount = displayProcesos.filter((p) => p.estado === "done").length;
+    const DONECount = displayProcesos.filter((p) => p.estado === "DONE").length;
     const inProgressCount = displayProcesos.filter(
-      (p) => p.estado === "in_progress"
+      (p) => p.estado === "IN_PROGRESS"
     ).length;
     const totalSteps = displayProcesos.length;
 
     // Evita división por cero si no hay procesos
     const completedRatio =
       totalSteps > 0
-        ? ((doneCount + inProgressCount * 0.5) / totalSteps) * 100
+        ? ((DONECount + inProgressCount * 0.5) / totalSteps) * 100
         : 0;
 
     const spentMinutes = displayProcesos
-      .filter((p) => p.estado === "done" || p.estado === "in_progress")
+      .filter((p) => p.estado === "DONE" || p.estado === "IN_PROGRESS")
       .reduce((acc, p) => acc + p.minutos, 0);
 
     return {
-      doneCount,
+      DONECount,
       inProgressCount,
       totalSteps,
       completedRatio: Math.round(completedRatio),
@@ -210,18 +227,18 @@ export default function PiezaDashboard() {
               <div className="absolute left-[10px] top-0 bottom-0 w-[2px] bg-border" />
               {displayProcesos.map((p) => {
                 const icon =
-                  p.estado === "done" ? (
+                  p.estado === "DONE" ? (
                     <CheckCircle2 className="h-4 w-4" />
-                  ) : p.estado === "in_progress" ? (
+                  ) : p.estado === "IN_PROGRESS" ? (
                     <Clock className="h-4 w-4" />
                   ) : (
                     <Circle className="h-4 w-4" />
                   );
 
                 const tone =
-                  p.estado === "done"
+                  p.estado === "DONE"
                     ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : p.estado === "in_progress"
+                    : p.estado === "IN_PROGRESS"
                     ? "bg-amber-50 border-amber-200 text-amber-800"
                     : "bg-muted text-foreground/70 border";
 
@@ -241,13 +258,13 @@ export default function PiezaDashboard() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-medium">{p.label}</div>
                         <div className="flex items-center gap-2">
-                          {p.estado === "done" && (
+                          {p.estado === "DONE" && (
                             <Badge variant="outline">Completado</Badge>
                           )}
-                          {p.estado === "in_progress" && (
+                          {p.estado === "IN_PROGRESS" && (
                             <Badge variant="outline">En proceso</Badge>
                           )}
-                          {p.estado === "pending" && (
+                          {p.estado === "PENDING" && (
                             <Badge variant="outline">Pendiente</Badge>
                           )}
                           <span className="text-sm">{p.minutos} min</span>
@@ -267,7 +284,7 @@ export default function PiezaDashboard() {
                 <TableRow>
                   <TableHead className="w-12 text-center">#</TableHead>
                   <TableHead>Proceso</TableHead>
-                  <TableHead className="text-right">Minutos</TableHead>
+                  <TableHead className="text-center">Minutos</TableHead>
                   <TableHead className="text-center">Estado</TableHead>
                 </TableRow>
               </TableHeader>
@@ -276,13 +293,13 @@ export default function PiezaDashboard() {
                   <TableRow key={p.key}>
                     <TableCell className="text-center">{i + 1}</TableCell>
                     <TableCell>{p.label}</TableCell>
-                    <TableCell className="text-right">{p.minutos}</TableCell>
+                    <TableCell className="text-center">{p.minutos}</TableCell>
                     <TableCell className="text-center">
-                      {p.estado === "done" && <Badge>Completado</Badge>}
-                      {p.estado === "in_progress" && (
+                      {p.estado === "DONE" && <Badge>Completado</Badge>}
+                      {p.estado === "IN_PROGRESS" && (
                         <Badge variant="secondary">En proceso</Badge>
                       )}
-                      {p.estado === "pending" && (
+                      {p.estado === "PENDING" && (
                         <Badge variant="outline">Pendiente</Badge>
                       )}
                     </TableCell>
@@ -293,7 +310,7 @@ export default function PiezaDashboard() {
                   <TableCell className="font-medium">
                     Total (completado + en proceso)
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-center font-medium">
                     {totals.spentMinutes}
                   </TableCell>
                   <TableCell />
