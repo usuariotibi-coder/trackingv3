@@ -302,7 +302,8 @@ export default function IntakeDePlanos() {
     // 5. Realizar la solicitud POST
     try {
       const response = await fetch(
-        "https://tracking00-production.up.railway.app/api/proyecto/",
+        //"https://tracking00-production.up.railway.app/api/proyecto/",
+        "http://localhost:8000/api/proyecto/",
         {
           method: "POST",
           // ¡IMPORTANTE! NO se especifica 'Content-Type'.
