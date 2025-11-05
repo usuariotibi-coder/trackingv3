@@ -1,5 +1,5 @@
 import { gql } from "@apollo/client";
-import { useQuery, useSubscription } from "@apollo/client/react";
+import { useQuery } from "@apollo/client/react";
 import { useParams } from "react-router-dom";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
@@ -55,18 +55,6 @@ interface ProyectoQueryResult {
   } | null;
 }
 
-interface ProcesoProyectoSubscription {
-  proceso: {
-    nombre: string;
-  };
-  tiempo: number | null;
-  estado: Estado; // Asumiendo que 'Estado' ya está definido
-}
-
-interface EstadoProcesoSubscriptionResult {
-  estadoProcesoActualizado: ProcesoProyectoSubscription | null;
-}
-
 // ---------- Página ----------
 export default function PiezaDashboard() {
   const { id } = useParams();
@@ -102,54 +90,10 @@ export default function PiezaDashboard() {
     },
   });
 
-  const ESTADO_SUBSCRIPTION = gql`
-    subscription EstadoProcesoActualizado($proyecto: ID!) {
-      estadoProcesoActualizado(proyecto: $proyecto) {
-        proceso {
-          nombre
-        }
-        tiempo
-        estado
-      }
-    }
-  `;
-
-  // En tu componente:
-  const { data: subData } = useSubscription<EstadoProcesoSubscriptionResult>(
-    ESTADO_SUBSCRIPTION,
-    {
-      variables: { proyecto: id },
-    }
-  );
-
-  const mergedProyecto = useMemo(() => {
-    let currentProyecto = data?.proyecto;
-
-    if (subData && currentProyecto) {
-      const updatedProceso = subData?.estadoProcesoActualizado;
-
-      if (updatedProceso) {
-        const updatedProcesos = currentProyecto.procesos.map((p) => {
-          if (p.proceso.nombre === updatedProceso.proceso.nombre) {
-            return updatedProceso;
-          }
-          return p;
-        });
-
-        return {
-          ...currentProyecto,
-          procesos: updatedProcesos,
-        };
-      }
-    }
-
-    return currentProyecto;
-  }, [data, subData]);
-
-  const proyecto = mergedProyecto;
+  const proyecto = data?.proyecto;
 
   const showData = () => {
-    console.log(subData);
+    console.log(data);
   };
 
   const displayProcesos: DisplayPaso[] = useMemo(() => {
