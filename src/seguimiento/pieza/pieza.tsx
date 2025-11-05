@@ -25,6 +25,14 @@ import { CheckCircle2, Clock, Circle } from "lucide-react";
 
 // ---------- Mock (simulación de datos) ----------
 // En el futuro, esto vendrá de tu API usando el parámetro "op".
+
+type DisplayPaso = {
+  key: string;
+  label: string;
+  minutos: number;
+  estado: Estado;
+};
+
 type Estado = "PENDING" | "IN_PROGRESS" | "DONE";
 
 interface ProcesoProyecto {
@@ -34,13 +42,6 @@ interface ProcesoProyecto {
   tiempo: number | null; // DecimalField en Python se mapea a number en JS
   estado: Estado; // El ENUM/ChoiceField de tu modelo Django
 }
-
-type DisplayPaso = {
-  key: string;
-  label: string;
-  minutos: number;
-  estado: Estado;
-};
 
 interface ProyectoQueryResult {
   proyecto: {
