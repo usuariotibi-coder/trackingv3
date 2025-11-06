@@ -94,6 +94,8 @@ export default function PiezaDashboard() {
   const proyecto = data?.proyecto;
 
   const showData = () => {
+    console.log(loading);
+    console.log(error);
     console.log(data);
   };
 
