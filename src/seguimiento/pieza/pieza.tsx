@@ -33,7 +33,7 @@ type DisplayPaso = {
   estado: Estado;
 };
 
-type Estado = "PENDING" | "IN_PROGRESS" | "DONE";
+type Estado = "pending" | "in_progress" | "done";
 
 interface ProcesoProyecto {
   proceso: {
@@ -112,9 +112,9 @@ export default function PiezaDashboard() {
   }, [proyecto]);
 
   const totals = useMemo(() => {
-    const DONECount = displayProcesos.filter((p) => p.estado === "DONE").length;
+    const DONECount = displayProcesos.filter((p) => p.estado === "done").length;
     const inProgressCount = displayProcesos.filter(
-      (p) => p.estado === "IN_PROGRESS"
+      (p) => p.estado === "in_progress"
     ).length;
     const totalSteps = displayProcesos.length;
 
@@ -125,7 +125,7 @@ export default function PiezaDashboard() {
         : 0;
 
     const spentMinutes = displayProcesos
-      .filter((p) => p.estado === "DONE" || p.estado === "IN_PROGRESS")
+      .filter((p) => p.estado === "done" || p.estado === "in_progress")
       .reduce((acc, p) => acc + p.minutos, 0);
 
     return {
@@ -209,18 +209,18 @@ export default function PiezaDashboard() {
               <div className="absolute left-[10px] top-0 bottom-0 w-[2px] bg-border" />
               {displayProcesos.map((p) => {
                 const icon =
-                  p.estado === "DONE" ? (
+                  p.estado === "done" ? (
                     <CheckCircle2 className="h-4 w-4" />
-                  ) : p.estado === "IN_PROGRESS" ? (
+                  ) : p.estado === "in_progress" ? (
                     <Clock className="h-4 w-4" />
                   ) : (
                     <Circle className="h-4 w-4" />
                   );
 
                 const tone =
-                  p.estado === "DONE"
+                  p.estado === "done"
                     ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : p.estado === "IN_PROGRESS"
+                    : p.estado === "in_progress"
                     ? "bg-amber-50 border-amber-200 text-amber-800"
                     : "bg-muted text-foreground/70 border";
 
@@ -240,13 +240,13 @@ export default function PiezaDashboard() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-medium">{p.label}</div>
                         <div className="flex items-center gap-2">
-                          {p.estado === "DONE" && (
+                          {p.estado === "done" && (
                             <Badge variant="outline">Completado</Badge>
                           )}
-                          {p.estado === "IN_PROGRESS" && (
+                          {p.estado === "in_progress" && (
                             <Badge variant="outline">En proceso</Badge>
                           )}
-                          {p.estado === "PENDING" && (
+                          {p.estado === "pending" && (
                             <Badge variant="outline">Pendiente</Badge>
                           )}
                           <span className="text-sm">{p.minutos} min</span>
@@ -277,11 +277,11 @@ export default function PiezaDashboard() {
                     <TableCell>{p.label}</TableCell>
                     <TableCell className="text-center">{p.minutos}</TableCell>
                     <TableCell className="text-center">
-                      {p.estado === "DONE" && <Badge>Completado</Badge>}
-                      {p.estado === "IN_PROGRESS" && (
+                      {p.estado === "done" && <Badge>Completado</Badge>}
+                      {p.estado === "in_progress" && (
                         <Badge variant="secondary">En proceso</Badge>
                       )}
-                      {p.estado === "PENDING" && (
+                      {p.estado === "pending" && (
                         <Badge variant="outline">Pendiente</Badge>
                       )}
                     </TableCell>
