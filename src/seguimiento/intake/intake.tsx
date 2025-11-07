@@ -23,17 +23,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import {
-  ClipboardCopy,
-  Download,
-  Printer,
-  QrCode,
-  PlusCircle,
-  Trash2,
-  TimerReset,
-} from "lucide-react";
+import { Printer, QrCode, PlusCircle, Trash2, TimerReset } from "lucide-react";
 
 /**
  * Sistema de Seguimiento — Página de recepción de planos
@@ -105,7 +97,7 @@ function nuevaOperacionSugerida(proyecto: string) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const d = new Date();
   // OP-<Proyecto>-YYMMDD-<ms>
-  return `OP-${proyecto || "XXXX"}-${String(d.getFullYear()).slice(2)}${pad(
+  return `WO-${proyecto || "XXXX"}-${String(d.getFullYear()).slice(2)}${pad(
     d.getMonth() + 1
   )}${pad(d.getDate())}-${d.getHours()}${pad(d.getMinutes())}`;
 }
@@ -231,15 +223,6 @@ export default function IntakeDePlanos() {
     const sug = nuevaOperacionSugerida(noProyecto);
     setNoOperacion(sug);
     toast.success("No. de operación sugerido generado");
-  };
-
-  const copiarJSON = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payloadQR));
-      toast.success("Copiado al portapapeles");
-    } catch (e) {
-      toast.error("No se pudo copiar");
-    }
   };
 
   const resetForm = () => {
@@ -456,7 +439,7 @@ export default function IntakeDePlanos() {
                   <Label>No. de operación</Label>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="OP-XXXX-YYMMDD-HHMM"
+                      placeholder="WO-XXXX-YYMMDD-HHMM"
                       value={noOperacion}
                       onChange={(e) => setNoOperacion(e.target.value)}
                     />
@@ -576,14 +559,8 @@ export default function IntakeDePlanos() {
                 Contenido del código y vista de impresión.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <Tabs defaultValue="qr">
-                <TabsList className="grid grid-cols-3">
-                  <TabsTrigger value="qr">QR</TabsTrigger>
-                  <TabsTrigger value="json">JSON</TabsTrigger>
-                  <TabsTrigger value="print">Vista Impresión</TabsTrigger>
-                </TabsList>
-
                 <TabsContent value="qr" className="pt-2">
                   <div className="flex flex-col items-center justify-center gap-3">
                     <QRCodeSVG value={JSON.stringify(payloadQR)} size={180} />
@@ -593,41 +570,6 @@ export default function IntakeDePlanos() {
                         {noPlano || "No de Plano"}
                       </div>
                     </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="json" className="pt-2">
-                  <div className="rounded-lg border bg-muted/10 p-3 text-xs overflow-auto h-64">
-                    <pre>{JSON.stringify(payloadQR, null, 2)}</pre>
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <Button
-                      variant="secondary"
-                      type="button"
-                      onClick={copiarJSON}
-                    >
-                      <ClipboardCopy className="h-4 w-4 mr-1" /> Copiar JSON
-                    </Button>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => {
-                        const blob = new Blob(
-                          [JSON.stringify(payloadQR, null, 2)],
-                          {
-                            type: "application/json",
-                          }
-                        );
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `${payloadQR.op || "operacion"}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" /> Descargar JSON
-                    </Button>
                   </div>
                 </TabsContent>
 
