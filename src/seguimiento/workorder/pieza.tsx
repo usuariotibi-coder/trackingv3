@@ -32,7 +32,7 @@ type DisplayPaso = {
   estado: Estado;
 };
 
-type Estado = "pending" | "in_progress" | "done";
+type Estado = "pending" | "in_progress" | "done" | "scrap";
 
 interface ProcesoOperacion {
   proceso: {

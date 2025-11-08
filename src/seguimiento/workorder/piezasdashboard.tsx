@@ -35,7 +35,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 /* ----------------- Tipos ----------------- */
-type Estado = "done" | "in_progress" | "pending";
+type Estado = "done" | "in_progress" | "pending" | "scrap";
 type Paso = { key: string; label: string; minutos: number; estado: Estado };
 
 type Pieza = {
