@@ -205,7 +205,7 @@ interface ProcesoProyecto {
 }
 
 // 💡 AJUSTE DE TIPO: Esperamos un array de "proyectos"
-interface ProyectoQueryResult {
+interface WorkOrderQueryResult {
   proyectos:
     | {
         id: string; // Mapea a Pieza.op
@@ -223,27 +223,16 @@ interface ProyectoQueryResult {
 /* ----------------- Página ----------------- */
 export default function PiezasDashboard() {
   const GET_DATOS = gql`
-    query GetProyectos {
-      proyectos {
-        id
-        plano
-        proyecto
+    query Getworkorders {
+      workorders {
         tipo
         material
         categoria
-        operacion
-        procesos {
-          proceso {
-            nombre
-          }
-          tiempo
-          estado
-        }
       }
     }
   `;
 
-  const { loading, error, data } = useQuery<ProyectoQueryResult>(GET_DATOS);
+  const { loading, error, data } = useQuery<WorkOrderQueryResult>(GET_DATOS);
 
   // 💡 AJUSTE 1: Mapear la data de GraphQL al tipo Pieza para mantener la compatibilidad
   const apiPiezas: Pieza[] = useMemo(() => {

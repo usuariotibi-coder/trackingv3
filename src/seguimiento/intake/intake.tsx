@@ -203,11 +203,14 @@ export default function IntakeDePlanos() {
   };
 
   const addProcesoCustom = () => {
-    // const nuevoKey = `custom_${crypto.randomUUID().slice(0, 6)}`;
+    // Generar una clave única (ej: timestamp o UUID simplificado)
+    const nuevoKey = Date.now();
+    // const nuevoKey = `custom_${crypto.randomUUID().slice(0, 6)}`; // Opción alternativa más robusta
+
     setProcesos((arr) => [
       ...arr,
       {
-        key: 10,
+        key: nuevoKey, // Asignar la clave única
         label: "Proceso personalizado",
         enabled: true,
         minutos: "",
@@ -245,25 +248,35 @@ export default function IntakeDePlanos() {
   };
 
   const handleSubmit = async () => {
-    const procesoproyecto = procesos
+    // 1. Prepara la lista de ProcesoPlano
+    const procesos_operacion = procesos
       .filter((p) => p.enabled === true && p.minutos)
       .map((proceso) => ({
-        // Usamos .key (que ahora sabemos que son los IDs)
+        // Usamos .key, que son los IDs de Proceso
         proceso: proceso.key,
-        tiempo: parseFloat(proceso.minutos || "0"),
+        tiempo_estimado: parseFloat(proceso.minutos || "0"),
       }));
 
-    // 3. Prepara los datos del Plano (JSON payload)
+    // 2. Construir la data de la única Operacion
+    const operacionData = {
+      operacion: noOperacion,
+      // La lista de procesos_plano va anidada DENTRO de la Operacion.
+      procesos: procesos_operacion,
+    };
+
+    // 3. Prepara los datos finales (JSON payload)
     const jsonPayload = {
+      // Campo de búsqueda del proyecto
+      proyecto_num: noProyecto,
+
+      // Campos que van al modelo Plano
       plano: noPlano,
-      proyecto: noProyecto,
       tipo: tipo,
       material: material,
       categoria: categoria,
-      operacion: noOperacion,
       observaciones: observaciones,
-      // Incluimos el array de procesos anidados
-      procesos: procesoproyecto,
+
+      operacion_data: operacionData,
     };
 
     // 4. Construir el objeto FormData
@@ -273,25 +286,16 @@ export default function IntakeDePlanos() {
       formData.append("archivo", archivo, archivo.name);
     }
 
-    // B) Añadir el JSON payload.
-    // DRF necesita que los datos no-archivo estén bajo una clave específica (e.g., 'data')
-    // y serializados como cadena. Tu backend debe decodificar esto.
+    // Añadir el JSON payload como string.
     formData.append("data", JSON.stringify(jsonPayload));
 
-    console.log("FormData: Datos JSON enviados bajo la clave 'data'.");
-
-    // 5. Realizar la solicitud POST
     try {
       const response = await fetch(
-        "https://tracking00-production.up.railway.app/api/proyecto/",
-        //"http://localhost:8000/api/proyecto/",
+        //"https://tracking00-production.up.railway.app/api/proyecto/",
+        "http://localhost:8000/api/workorder/",
         {
           method: "POST",
-          // ¡IMPORTANTE! NO se especifica 'Content-Type'.
-          // El navegador lo establece automáticamente a 'multipart/form-data'
-          // y genera el boundary necesario.
-          // headers: { "Content-Type": "application/json" }, <--- ¡ELIMINADO!
-          body: formData, // Enviar el objeto FormData
+          body: formData,
         }
       );
 

@@ -61,14 +61,11 @@ export default function PiezaDashboard() {
   const { id } = useParams();
 
   const GET_DATOS = gql`
-    query GetProyecto($id: ID!) {
-      proyecto(id: $id) {
+    query GetOperacion($id: ID!) {
+      operacion(id: $id) {
         id
         plano
         proyecto
-        tipo
-        material
-        categoria
         operacion
         procesos {
           proceso {

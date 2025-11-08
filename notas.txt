@@ -1,0 +1,64 @@
+const handleSubmit = async () => {
+    const procesoproyecto = procesos
+      .filter((p) => p.enabled === true && p.minutos)
+      .map((proceso) => ({
+        // Usamos .key (que ahora sabemos que son los IDs)
+        proceso: proceso.key,
+        tiempo: parseFloat(proceso.minutos || "0"),
+      }));
+
+    // 3. Prepara los datos del Plano (JSON payload)
+    const jsonPayload = {
+      plano: noPlano,
+      proyecto: noProyecto,
+      tipo: tipo,
+      material: material,
+      categoria: categoria,
+      operacion: noOperacion,
+      observaciones: observaciones,
+      // Incluimos el array de procesos anidados
+      procesos: procesoproyecto,
+    };
+
+    // 4. Construir el objeto FormData
+    const formData = new FormData();
+
+    if (archivo) {
+      formData.append("archivo", archivo, archivo.name);
+    }
+
+    // B) Añadir el JSON payload.
+    // DRF necesita que los datos no-archivo estén bajo una clave específica (e.g., 'data')
+    // y serializados como cadena. Tu backend debe decodificar esto.
+    formData.append("data", JSON.stringify(jsonPayload));
+
+    console.log("FormData: Datos JSON enviados bajo la clave 'data'.");
+
+    // 5. Realizar la solicitud POST
+    try {
+      const response = await fetch(
+        "https://tracking00-production.up.railway.app/api/proyecto/",
+        //"http://localhost:8000/api/proyecto/",
+        {
+          method: "POST",
+          // ¡IMPORTANTE! NO se especifica 'Content-Type'.
+          // El navegador lo establece automáticamente a 'multipart/form-data'
+          // y genera el boundary necesario.
+          // headers: { "Content-Type": "application/json" }, <--- ¡ELIMINADO!
+          body: formData, // Enviar el objeto FormData
+        }
+      );
+
+      if (response.ok) {
+        toast.success("Plano y procesos guardados exitosamente");
+        // resetForm();
+      } else {
+        const errorData = await response.json();
+        console.error("Error del servidor (DRF):", errorData);
+        toast.error("Error al guardar");
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+      toast.error("Ocurrió un error de conexión.");
+    }
+  };
