@@ -180,7 +180,7 @@ export default function ScanStation() {
     },
     // Solo se ejecuta si el operador está bloqueado y tenemos ambos IDs válidos
     //skip: !locked || !operacion || !proceso,
-    //fetchPolicy: "network-only", // Siempre obtener la data más fresca
+    fetchPolicy: "network-only", // Siempre obtener la data más fresca
   });
 
   const procesoEspecifico = dataP?.procesoOpPorOperacionYProceso;
@@ -249,24 +249,28 @@ export default function ScanStation() {
     // Simulación de ID de máquina, ajustar según tu necesidad (ej: por QR de máquina)
     const maquinaId = "1";
 
+    let nuevoEstado: string;
+
     try {
       if (estado === "pending") {
         // --- INICIAR PROCESO ---
+        nuevoEstado = "in_progress";
         await iniciarProcesoOp({
           variables: {
             procesoOpId: procesoOpId,
             usuarioId: usuarioId,
-            nuevoEstado: "in_progress",
+            estado: nuevoEstado,
             maquinaId: maquinaId,
           },
         });
         addScan("ok", `Proceso iniciado: ${procesoEspecifico.proceso.nombre}`);
       } else if (estado === "in_progress") {
         // --- FINALIZAR PROCESO ---
+        nuevoEstado = "done";
         await finalizarProcesoOp({
           variables: {
             procesoOpId: procesoOpId,
-            nuevoEstado: "done",
+            estado: nuevoEstado,
           },
         });
         addScan(
@@ -427,7 +431,7 @@ export default function ScanStation() {
           className="text-2xl font-semibold tracking-tight"
           onClick={showData}
         >
-          Estación de Escaneo
+          Estación de Escaneo: {dataE?.usuario?.proceso?.nombre}
         </motion.h1>
         <p className="text-sm text-muted-foreground">
           Captura de operador y Work Order · Página las últimas 5
