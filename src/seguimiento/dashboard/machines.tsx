@@ -28,17 +28,16 @@ type Machine = {
 };
 
 // --- Tipos de GraphQL (Deducción basada en el query) ---
-// NOTA: He añadido 'horaInicio' al tipo para que el mapeo sea más claro.
 type GetProcesosOperacionQuery = {
   todosProcesosOperacion: Array<{
-    id: string; // El ID de la operación que agregaste al query
-    operacion: { operacion: string }; // Aunque no se usa en Machine, se mantiene si es parte del query
+    id: string; // El ID de la operación
+    operacion: { operacion: string };
     maquina: { nombre: string };
-    usuario: { nombre: string } | null; // Puede ser null
-    proceso: { nombre: string } | null; // Puede ser null
-    estado: string; // "ACTIVO", "INACTIVO", "MANTENIMIENTO", etc.
+    usuario: { nombre: string } | null;
+    proceso: { nombre: string } | null;
+    estado: string; // Estado del proceso (Ej: "in_progress", "pending", etc.)
     tiempoEstimado: number;
-    horaInicio?: string | null; // Lo añadimos al tipo para startedAt
+    horaInicio?: string | null;
   }>;
 };
 
@@ -67,7 +66,11 @@ function barPct(elapsed: number, target: number) {
 function mapStatus(serverStatus: string): MachineStatus {
   const lowerStatus = serverStatus.toLowerCase();
   if (lowerStatus.includes("mantenimiento")) return "maintenance";
-  if (lowerStatus.includes("activo") || lowerStatus.includes("trabajando"))
+  if (
+    lowerStatus.includes("activo") ||
+    lowerStatus.includes("trabajando") ||
+    lowerStatus.includes("in_progress")
+  )
     return "running";
   return "idle"; // Mapea cualquier otro estado a inactivo
 }
@@ -119,31 +122,28 @@ function statusColor(machine: Machine) {
 }
 
 // -------------------------------
-// 2. Función de Transformación de Datos (CON FILTRO)
+// 2. Función de Transformación de Datos (CON FILTRO POR ESTADO)
 // -------------------------------
 function transformDataToMachines(data: ProcesosOpQueryResult): Machine[] {
   if (!data?.todosProcesosOperacion) return [];
 
-  // FILTRO CLAVE: Solo procesar ítems que tengan usuario y proceso definidos.
+  // ✅ FILTRO CLAVE: Solo procesar ítems cuyo estado sea "in_progress"
   return data.todosProcesosOperacion
-    .filter(
-      (item) =>
-        item.usuario &&
-        item.proceso &&
-        item.usuario.nombre &&
-        item.proceso.nombre
-    )
+    .filter((item) => item.estado.toLowerCase() === "in_progress")
     .map((item) => {
-      // TypeScript ya sabe que item.usuario y item.proceso no son null aquí.
+      // Usamos el operador ternario para manejar la potencial nulidad de usuario/proceso
+      const operatorName = item.usuario ? item.usuario.nombre : null;
+      const pieceName = item.proceso ? item.proceso.nombre : null;
+
       const status = mapStatus(item.estado);
 
       return {
-        id: item.id, // Ahora que confirmaste que 'id' está en el query, lo usamos
+        id: item.id,
         name: item.maquina.nombre,
-        piece: item.proceso!.nombre, // Usamos ! para afirmar que existe (aunque ya filtramos)
-        operator: item.usuario!.nombre,
+        piece: pieceName,
+        operator: operatorName,
         status: status,
-        startedAt: (item as any).horaInicio || null, // Mantenemos (item as any).horaInicio si no está tipado directamente
+        startedAt: (item as any).horaInicio || null,
         cycleTargetMin: item.tiempoEstimado,
       };
     });
@@ -171,6 +171,9 @@ export default function MaquinasDashboard() {
         }
         estado
         tiempoEstimado
+        horaInicio
+        horaFin
+        tiempoRealCalculado
       }
     }
   `;
@@ -186,7 +189,7 @@ export default function MaquinasDashboard() {
 
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MachineStatus>(
-    "all"
+    "running" // Cambiado el filtro inicial a 'running' ya que solo cargamos estos
   );
   const [tick, setTick] = useState(0); // para re-renderizar el elapsed cada 30s
 
@@ -203,6 +206,7 @@ export default function MaquinasDashboard() {
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return machines.filter((m) => {
+      // El filtro del dashboard se aplicará AHORA sobre los resultados ya filtrados por 'in_progress'
       const okStatus =
         statusFilter === "all" ? true : m.status === statusFilter;
       const okTerm =
@@ -260,7 +264,7 @@ export default function MaquinasDashboard() {
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos (Activas/Inactivas)</SelectItem>
                 <SelectItem value="running">Trabajando</SelectItem>
                 <SelectItem value="idle">Inactivos</SelectItem>
                 <SelectItem value="maintenance">Mantenimiento</SelectItem>
@@ -295,7 +299,7 @@ export default function MaquinasDashboard() {
         )}
         {machines.length === 0 && !loading && (
           <div className="text-center text-slate-500 mt-8">
-            No hay datos de máquinas disponibles en este momento.
+            No hay máquinas trabajando actualmente.
           </div>
         )}
       </div>
