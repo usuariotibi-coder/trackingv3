@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { gql } from "@apollo/client";
+import { useQuery } from "@apollo/client/react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
 import {
@@ -31,16 +33,16 @@ import { Printer, QrCode, PlusCircle, Trash2, TimerReset } from "lucide-react";
  * Sistema de Seguimiento — Página de recepción de planos
  *
  * Qué hace este componente:
- *  - Captura los metadatos del plano liberado por Diseño
- *  - Permite seleccionar procesos y asignar tiempos (minutos)
- *  - Genera No. de operación (editable)
- *  - Genera un QR con los datos clave para rastreo en piso
- *  - Muestra una vista de impresión en formato hoja para pegar al plano
+ * - Captura los metadatos del plano liberado por Diseño
+ * - Permite seleccionar procesos y asignar tiempos (minutos)
+ * - Genera No. de operación (editable)
+ * - Genera un QR con los datos clave para rastreo en piso
+ * - Muestra una vista de impresión en formato hoja para pegar al plano
  *
  * Requisitos:
- *  - shadcn/ui instalado
- *  - tailwind
- *  - paquetes: framer-motion, qrcode.react, sonner
+ * - shadcn/ui instalado
+ * - tailwind
+ * - paquetes: framer-motion, qrcode.react, sonner
  *
  * Sugerencia de ruta: app/seguimiento/intake/page.tsx
  */
@@ -93,6 +95,20 @@ type Proceso = {
   minutos: string; // vacío hasta que el usuario defina
 };
 
+// ----------------------------------------
+// TIPOS Y QUERY DE PROYECTOS (Añadido/Definido)
+// ----------------------------------------
+type Proyecto = {
+  id: string;
+  proyecto: string;
+  descripcion: string;
+};
+
+// Se asume que este es el tipo de resultado de tu query.
+type ProjectQueryResult = {
+  proyectos: Proyecto[];
+};
+
 function nuevaOperacionSugerida(proyecto: string) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const d = new Date();
@@ -103,7 +119,21 @@ function nuevaOperacionSugerida(proyecto: string) {
 }
 
 export default function IntakeDePlanos() {
+  const GET_DATOS = gql`
+    query GetProyectos {
+      proyectos {
+        id
+        proyecto
+        descripcion
+      }
+    }
+  `;
+
+  const { loading, error, data } = useQuery<ProjectQueryResult>(GET_DATOS);
+  const proyectos = data?.proyectos || [];
+
   const [noPlano, setNoPlano] = useState("");
+  // noProyecto ahora almacena el ID (string) del proyecto seleccionado
   const [noProyecto, setNoProyecto] = useState("");
   const [tipo, setTipo] = useState<string | undefined>(undefined);
   const [material, setMaterial] = useState<string | undefined>(undefined);
@@ -142,6 +172,7 @@ export default function IntakeDePlanos() {
         min: Number(p.minutos || 0),
       }));
 
+    // Para el QR, usamos el ID del proyecto (noProyecto)
     return {
       op: noOperacion || nuevaOperacionSugerida(noProyecto),
       plano: noPlano,
@@ -205,7 +236,6 @@ export default function IntakeDePlanos() {
   const addProcesoCustom = () => {
     // Generar una clave única (ej: timestamp o UUID simplificado)
     const nuevoKey = Date.now();
-    // const nuevoKey = `custom_${crypto.randomUUID().slice(0, 6)}`; // Opción alternativa más robusta
 
     setProcesos((arr) => [
       ...arr,
@@ -266,7 +296,7 @@ export default function IntakeDePlanos() {
 
     // 3. Prepara los datos finales (JSON payload)
     const jsonPayload = {
-      // Campo de búsqueda del proyecto
+      // Campo de búsqueda del proyecto: Ahora es el ID del proyecto
       proyecto_num: noProyecto,
 
       // Campos que van al modelo Plano
@@ -291,7 +321,7 @@ export default function IntakeDePlanos() {
 
     try {
       const response = await fetch(
-        //"https://tracking00-production.up.railway.app/api/proyecto/",
+        //"https://tracking00-production.up.railway.app/api/workorder/",
         "http://localhost:8000/api/workorder/",
         {
           method: "POST",
@@ -325,7 +355,8 @@ export default function IntakeDePlanos() {
   };
 
   const showData = () => {
-    console.log("hola");
+    console.log("Payload QR:", payloadQR);
+    console.log("Procesos:", procesos);
   };
 
   return (
@@ -365,14 +396,31 @@ export default function IntakeDePlanos() {
                     onChange={(e) => setNoPlano(e.target.value)}
                   />
                 </div>
+                {/* INICIO DEL CAMBIO: Select para No. de Proyecto */}
                 <div>
                   <Label htmlFor="noProyecto">No. de Proyecto *</Label>
-                  <Input
-                    id="noProyecto"
-                    placeholder="3272"
-                    value={noProyecto}
-                    onChange={(e) => setNoProyecto(e.target.value)}
-                  />
+                  {loading ? (
+                    <Input disabled placeholder="Cargando proyectos..." />
+                  ) : error ? (
+                    <Input disabled placeholder="Error al cargar proyectos" />
+                  ) : (
+                    <Select
+                      value={noProyecto}
+                      onValueChange={setNoProyecto} // noProyecto se establece al ID del proyecto
+                    >
+                      <SelectTrigger id="noProyecto">
+                        <SelectValue placeholder="Selecciona un proyecto (ej: 3272)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {proyectos.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.proyecto} — {p.descripcion}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {/* FIN DEL CAMBIO: Select para No. de Proyecto */}
                 </div>
               </div>
 
@@ -451,6 +499,7 @@ export default function IntakeDePlanos() {
                       variant="secondary"
                       type="button"
                       onClick={sugerirOperacion}
+                      disabled={!noProyecto} // Deshabilitar si no hay proyecto seleccionado
                     >
                       <TimerReset className="h-4 w-4 mr-1" /> Sugerir
                     </Button>
@@ -521,12 +570,12 @@ export default function IntakeDePlanos() {
                           min
                         </span>
                         {/* ⚠️ Esto se puede mejorar. Ver explicación a continuación */}
-                        {p.key === 10 && ( // Si la clave es '10' o es un proceso personalizado (si el custom tiene su propia key)
+                        {(p.key === 10 || p.key >= 100000) && ( // Si la clave es '10' o es un proceso personalizado (usando un key grande)
                           <Button
                             variant="ghost"
                             size="icon"
                             type="button"
-                            onClick={() => removeProceso(p.key)}
+                            onClick={() => removeProceso(p.key as number)}
                             aria-label="Eliminar proceso"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -547,8 +596,11 @@ export default function IntakeDePlanos() {
                 <Button variant="outline" type="button" onClick={resetForm}>
                   Limpiar
                 </Button>
-                {/* <Button type="button" onClick={handleSubmit}> */}
-                <Button type="button" onClick={handleSubmit}>
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!noProyecto || !noPlano}
+                >
                   <Printer className="h-4 w-4 mr-1" /> Imprimir hoja
                 </Button>
               </div>
@@ -567,7 +619,11 @@ export default function IntakeDePlanos() {
               <Tabs defaultValue="qr">
                 <TabsContent value="qr" className="pt-2">
                   <div className="flex flex-col items-center justify-center gap-3">
-                    <QRCodeSVG value={JSON.stringify(payloadQR)} size={180} />
+                    <QRCodeSVG
+                      value={JSON.stringify(payloadQR)}
+                      size={180}
+                      level="H"
+                    />
                     <div className="text-center">
                       <div className="font-medium">{payloadQR.op}</div>
                       <div className="text-xs text-muted-foreground">
@@ -598,7 +654,12 @@ export default function IntakeDePlanos() {
               <div className="text-xs text-muted-foreground">
                 Verifica los datos antes de imprimir.
               </div>
-              <Button variant="outline" type="button" onClick={onPrint}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={onPrint}
+                disabled={!noProyecto || !noPlano}
+              >
                 <QrCode className="h-4 w-4 mr-1" /> Imprimir
               </Button>
             </CardFooter>
@@ -655,6 +716,7 @@ function HojaImpresion({
               <span className="font-medium">Operación:</span> {op}
             </div>
             <div>
+              {/* Mostramos el ID del proyecto que viene de 'noProyecto' */}
               <span className="font-medium">Proyecto:</span> {proyecto || "—"}
             </div>
             <div>
@@ -673,6 +735,7 @@ function HojaImpresion({
         </div>
         <div className="flex flex-col items-center">
           <QRCodeSVG
+            // El QR sigue usando los datos clave, incluyendo el ID del proyecto
             value={JSON.stringify({ op, plano, proyecto })}
             size={140}
           />

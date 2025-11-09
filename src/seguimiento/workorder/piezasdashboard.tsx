@@ -73,112 +73,12 @@ interface WorkOrderQueryResult {
     | null;
 }
 
-/* ----------------- Mocks de ejemplo ----------------- */
+/* ----------------- Mocks de ejemplo (ELIMINADOS/COMENTADOS) ----------------- */
+/*
 const MOCK_PIEZAS: Pieza[] = [
-  {
-    id: "1",
-    op: "OP-3272-0001",
-    plano: "3272-A-001",
-    proyecto: "3272",
-    categoria: "B",
-    createdAt: "2025-10-27T09:00:00Z",
-    procesos: [
-      { key: "corte", label: "Corte", minutos: 18, estado: "done" },
-      {
-        key: "programacion",
-        label: "Programación CNC",
-        minutos: 25,
-        estado: "done",
-      },
-      {
-        key: "maquinado",
-        label: "Maquinado CNC",
-        minutos: 60,
-        estado: "in_progress",
-      },
-      { key: "paileria", label: "Pailería", minutos: 0, estado: "pending" },
-      { key: "pintura", label: "Pintura", minutos: 0, estado: "pending" },
-      {
-        key: "inspeccion",
-        label: "Inspección / Limpieza",
-        minutos: 0,
-        estado: "pending",
-      },
-      { key: "calidad", label: "Calidad", minutos: 0, estado: "pending" },
-    ],
-  },
-  {
-    id: "2",
-    op: "OP-5001-0007",
-    plano: "5001-B-220",
-    proyecto: "5001",
-    categoria: "A",
-    createdAt: "2025-10-28T15:20:00Z",
-    procesos: [
-      { key: "corte", label: "Corte", minutos: 20, estado: "done" },
-      {
-        key: "programacion",
-        label: "Programación CNC",
-        minutos: 30,
-        estado: "done",
-      },
-      { key: "maquinado", label: "Maquinado CNC", minutos: 90, estado: "done" },
-      { key: "paileria", label: "Pailería", minutos: 35, estado: "done" },
-      { key: "pintura", label: "Pintura", minutos: 45, estado: "in_progress" },
-      { key: "inspeccion", label: "Inspección", minutos: 0, estado: "pending" },
-      { key: "calidad", label: "Calidad", minutos: 0, estado: "pending" },
-    ],
-  },
-  {
-    id: "3",
-    op: "OP-DEMO-0001",
-    plano: "1000-Z-015",
-    proyecto: "1000",
-    categoria: "C",
-    createdAt: "2025-10-29T11:10:00Z",
-    procesos: [
-      { key: "corte", label: "Corte", minutos: 0, estado: "pending" },
-      {
-        key: "programacion",
-        label: "Programación CNC",
-        minutos: 0,
-        estado: "pending",
-      },
-      {
-        key: "maquinado",
-        label: "Maquinado CNC",
-        minutos: 0,
-        estado: "pending",
-      },
-      { key: "paileria", label: "Pailería", minutos: 0, estado: "pending" },
-      { key: "pintura", label: "Pintura", minutos: 0, estado: "pending" },
-      { key: "inspeccion", label: "Inspección", minutos: 0, estado: "pending" },
-      { key: "calidad", label: "Calidad", minutos: 0, estado: "pending" },
-    ],
-  },
-  {
-    id: "4",
-    op: "OP-4200-0033",
-    plano: "4200-C-110",
-    proyecto: "4200",
-    categoria: "B",
-    createdAt: "2025-10-22T08:00:00Z",
-    procesos: [
-      { key: "corte", label: "Corte", minutos: 15, estado: "done" },
-      {
-        key: "programacion",
-        label: "Programación CNC",
-        minutos: 20,
-        estado: "done",
-      },
-      { key: "maquinado", label: "Maquinado CNC", minutos: 50, estado: "done" },
-      { key: "paileria", label: "Pailería", minutos: 40, estado: "done" },
-      { key: "pintura", label: "Pintura", minutos: 30, estado: "done" },
-      { key: "inspeccion", label: "Inspección", minutos: 25, estado: "done" },
-      { key: "calidad", label: "Calidad", minutos: 15, estado: "done" },
-    ],
-  },
+  // ... (Contenido de MOCK_PIEZAS eliminado para usar solo API)
 ];
+*/
 
 /* ----------------- Utilidades ----------------- */
 function computeStats(p: Pieza) {
@@ -187,9 +87,12 @@ function computeStats(p: Pieza) {
     (x) => x.estado === "in_progress"
   ).length;
   const total = p.procesos.length;
-  const completedRatio = Math.round(
-    ((doneCount + inProgressCount * 0.5) / total) * 100
-  );
+  // Manejo de división por cero
+  const completedRatio =
+    total > 0
+      ? Math.round(((doneCount + inProgressCount * 0.5) / total) * 100)
+      : 0;
+
   const spentMinutes = p.procesos
     .filter((x) => x.estado !== "pending")
     .reduce((a, b) => a + b.minutos, 0);
@@ -270,12 +173,14 @@ export default function PiezasDashboard() {
         proyecto: op.workorder.proyecto.proyecto,
         categoria: op.workorder.categoria as Pieza["categoria"],
         procesos: procesos,
+        // Si necesitas la fecha, tendrías que pedirla en el query (workorder.fecha)
+        createdAt: undefined,
       } as Pieza;
     });
   }, [data, loading, error]);
 
-  // Usar los mocks SOLO si no hay data de la API (y no hay error, si hay error mostramos info)
-  const finalPiezas = apiPiezas.length > 0 ? apiPiezas : MOCK_PIEZAS;
+  // Usar SOLO la data de la API (apiPiezas)
+  const finalPiezas = apiPiezas; // <-- CAMBIO CLAVE: Usamos solo los datos del query
 
   const [search, setSearch] = useState("");
   const [proyecto, setProyecto] = useState<string>("all");
@@ -283,7 +188,7 @@ export default function PiezasDashboard() {
   const [categoria, setCategoria] = useState<"all" | "A" | "B" | "C">("all");
   const [sortBy, setSortBy] = useState<
     "fecha_desc" | "progreso_desc" | "tiempo_desc"
-  >("fecha_desc");
+  >("progreso_desc"); // Cambiado a progreso como default ya que 'createdAt' puede ser undefined
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
@@ -322,6 +227,8 @@ export default function PiezasDashboard() {
     // Ordenamiento
     rows.sort((a, b) => {
       if (sortBy === "fecha_desc") {
+        // Al usar solo la API, si createdAt no se pide, se debe ordenar por otro campo.
+        // Si lo necesitas, debes agregarlo al query: workorder { fecha }
         const ad = a.pieza.createdAt ? Date.parse(a.pieza.createdAt) : 0;
         const bd = b.pieza.createdAt ? Date.parse(b.pieza.createdAt) : 0;
         return bd - ad;
@@ -357,7 +264,8 @@ export default function PiezasDashboard() {
     );
   }
 
-  if (error && apiPiezas.length === 0) {
+  // Si hay error, pero *no* hay data, muestra un error.
+  if (error && finalPiezas.length === 0) {
     return (
       <div className="mx-auto max-w-6xl p-6">
         <h1 className="text-2xl font-semibold tracking-tight text-red-600 mb-4">
@@ -366,8 +274,23 @@ export default function PiezasDashboard() {
         <p className="text-sm text-muted-foreground mb-6">
           Hubo un problema al cargar la información: {error.message}
         </p>
-        <p className="text-sm text-gray-500">
-          Se mostrarán los datos de ejemplo (MOCK_PIEZAS) como fallback.
+      </div>
+    );
+  }
+
+  // Si no hay piezas después de la carga
+  if (finalPiezas.length === 0) {
+    return (
+      <div className="mx-auto max-w-6xl p-6 text-center">
+        <motion.h1
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-2xl font-semibold tracking-tight mt-10"
+        >
+          No hay piezas en proceso
+        </motion.h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Comienza a agregar planos desde el módulo de Recepción de Planos.
         </p>
       </div>
     );
