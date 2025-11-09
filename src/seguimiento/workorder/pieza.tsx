@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, Clock, Circle } from "lucide-react";
+import { CheckCircle2, Clock, Circle, XCircle } from "lucide-react"; // Importar XCircle para 'scrap'
 
 // ---------- Tipos ----------
 
@@ -46,6 +46,7 @@ interface ProcesoOperacion {
 interface OperacionQueryResult {
   operacion: {
     // Los campos de la operación en sí
+    operacion: string; // Añadido operacion aquí para evitar errores de tipo
     workorder: {
       plano: string;
       categoria: string;
@@ -57,11 +58,30 @@ interface OperacionQueryResult {
   } | null;
 }
 
+// ---------- Utilidad de Ordenamiento (NUEVO) ----------
+
+/**
+ * Asigna un valor de prioridad a cada estado para el ordenamiento:
+ * scrap (1) > done (2) > in_progress (3) > pending (4)
+ */
+function getEstadoOrder(estado: Estado): number {
+  switch (estado) {
+    case "scrap":
+      return 1;
+    case "done":
+      return 2;
+    case "in_progress":
+      return 3;
+    case "pending":
+    default:
+      return 4;
+  }
+}
+
 // ---------- Página ----------
 export default function PiezaDashboard() {
   const { id } = useParams();
 
-  // 💡 AJUSTE DE QUERY: La query ya estaba correcta para la nueva estructura (operacion(id: $id) { ... })
   const GET_DATOS = gql`
     query GetOperacion($id: ID!) {
       operacion(id: $id) {
@@ -84,21 +104,16 @@ export default function PiezaDashboard() {
     }
   `;
 
-  // 💡 AJUSTE DE USEQUERY: Usamos el nuevo tipo OperacionQueryResult
   const {
     loading: loading,
     error: error,
     data: data,
-  } = useQuery<OperacionQueryResult & { operacion: { operacion: string } }>(
-    GET_DATOS,
-    {
-      variables: {
-        id: id,
-      },
-    }
-  );
+  } = useQuery<OperacionQueryResult>(GET_DATOS, {
+    variables: {
+      id: id,
+    },
+  });
 
-  // 💡 AJUSTE DE DATA: Obtenemos directamente 'operacion' del resultado
   const operacion = data?.operacion;
 
   const showData = () => {
@@ -108,16 +123,21 @@ export default function PiezaDashboard() {
   };
 
   const displayProcesos: DisplayPaso[] = useMemo(() => {
-    // 💡 AJUSTE DE DATA: Validamos 'operacion' en lugar de 'proyecto'
     if (!operacion || !operacion.procesos) return [];
 
-    return operacion.procesos.map((p, index) => ({
+    const procesos = operacion.procesos.map((p, index) => ({
       key: `${p.proceso.nombre}-${index}`,
       label: p.proceso.nombre,
-      // 💡 AJUSTE DE CAMPO: Usamos 'tiempoEstimado' de la query
       minutos: p.tiempoEstimado ? parseFloat(p.tiempoEstimado.toString()) : 0,
       estado: p.estado,
     }));
+
+    // Lógica de ordenamiento:
+    procesos.sort((a, b) => {
+      return getEstadoOrder(a.estado) - getEstadoOrder(b.estado);
+    });
+
+    return procesos;
   }, [operacion]);
 
   const totals = useMemo(() => {
@@ -215,24 +235,20 @@ export default function PiezaDashboard() {
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Operación</span>
-              {/* 💡 AJUSTE DE DATA: operacion.operacion */}
               <span className="font-medium">{operacion.operacion}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Plano</span>
-              {/* 💡 AJUSTE DE DATA: operacion.workorder.plano */}
               <span className="font-medium">{operacion.workorder.plano}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Proyecto</span>
-              {/* 💡 AJUSTE DE DATA: operacion.workorder.proyecto.proyecto */}
               <span className="font-medium">
                 {operacion.workorder.proyecto.proyecto}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Categoría</span>
-              {/* 💡 AJUSTE DE DATA: operacion.workorder.categoria */}
               <Badge variant="outline">
                 {operacion.workorder.categoria || "—"}
               </Badge>
@@ -267,26 +283,39 @@ export default function PiezaDashboard() {
               {/* Línea vertical */}
               <div className="absolute left-[10px] top-0 bottom-0 w-[2px] bg-border" />
               {displayProcesos.map((p) => {
-                const icon =
-                  p.estado === "done" ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : p.estado === "in_progress" ? (
-                    <Clock className="h-4 w-4" />
-                  ) : (
-                    <Circle className="h-4 w-4" />
-                  );
+                let icon: React.ReactNode;
+                let tone: string;
+                let badgeText: string;
 
-                const tone =
-                  p.estado === "done"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : p.estado === "in_progress"
-                    ? "bg-amber-50 border-amber-200 text-amber-800"
-                    : "bg-muted text-foreground/70 border";
+                if (p.estado === "done") {
+                  icon = <CheckCircle2 className="h-4 w-4" />;
+                  tone = "bg-emerald-50 border-emerald-200 text-emerald-800";
+                  badgeText = "Completado";
+                } else if (p.estado === "in_progress") {
+                  icon = <Clock className="h-4 w-4" />;
+                  tone = "bg-amber-50 border-amber-200 text-amber-800";
+                  badgeText = "En proceso";
+                } else if (p.estado === "scrap") {
+                  icon = <XCircle className="h-4 w-4" />; // Usar XCircle
+                  tone = "bg-red-50 border-red-200 text-red-800";
+                  badgeText = "Scrap";
+                } else {
+                  // pending
+                  icon = <Circle className="h-4 w-4" />;
+                  tone = "bg-muted text-foreground/70 border";
+                  badgeText = "Pendiente";
+                }
 
                 return (
                   <li key={p.key} className="relative pl-10 py-2">
                     {/* Nodo */}
-                    <span className="absolute left-0 top-[10px] -translate-y-1/2 grid place-items-center h-5 w-5 rounded-full bg-background border">
+                    <span
+                      className={`absolute left-0 top-[10px] -translate-y-1/2 grid place-items-center h-5 w-5 rounded-full ${
+                        p.estado === "done"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-background border"
+                      }`}
+                    >
                       {icon}
                     </span>
 
@@ -299,15 +328,7 @@ export default function PiezaDashboard() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-medium">{p.label}</div>
                         <div className="flex items-center gap-2">
-                          {p.estado === "done" && (
-                            <Badge variant="outline">Completado</Badge>
-                          )}
-                          {p.estado === "in_progress" && (
-                            <Badge variant="outline">En proceso</Badge>
-                          )}
-                          {p.estado === "pending" && (
-                            <Badge variant="outline">Pendiente</Badge>
-                          )}
+                          <Badge variant="outline">{badgeText}</Badge>
                           <span className="text-sm">{p.minutos} min</span>
                         </div>
                       </div>
@@ -339,6 +360,9 @@ export default function PiezaDashboard() {
                       {p.estado === "done" && <Badge>Completado</Badge>}
                       {p.estado === "in_progress" && (
                         <Badge variant="secondary">En proceso</Badge>
+                      )}
+                      {p.estado === "scrap" && (
+                        <Badge variant="destructive">Scrap</Badge> // Usar variante destructiva
                       )}
                       {p.estado === "pending" && (
                         <Badge variant="outline">Pendiente</Badge>
