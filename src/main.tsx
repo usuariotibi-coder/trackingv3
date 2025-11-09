@@ -7,8 +7,8 @@ import { ApolloProvider } from "@apollo/client/react";
 
 const client = new ApolloClient({
   link: new HttpLink({
-    //uri: "https://tracking00-production.up.railway.app/api/graphql",
-    uri: "http://localhost:8000/api/graphql",
+    uri: "https://tracking00-production.up.railway.app/api/graphql",
+    //uri: "http://localhost:8000/api/graphql",
   }),
   cache: new InMemoryCache(),
 });
