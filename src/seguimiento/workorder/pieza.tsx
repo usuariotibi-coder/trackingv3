@@ -28,8 +28,9 @@ import { CheckCircle2, Clock, Circle, XCircle } from "lucide-react"; // Importar
 type DisplayPaso = {
   key: string;
   label: string;
-  minutos: number;
+  minutos: number; // Tiempo Estimado
   estado: Estado;
+  tiempoReal: number | null; // Usaremos el tiempo real calculado
 };
 
 type Estado = "pending" | "in_progress" | "done" | "scrap";
@@ -38,15 +39,16 @@ interface ProcesoOperacion {
   proceso: {
     nombre: string;
   };
-  tiempoEstimado: number | null; // Usamos el campo de tu query
+  tiempoEstimado: number | null;
   estado: Estado;
+  tiempoRealCalculado: number | null; // Campo de GraphQL
 }
 
 // 💡 AJUSTE DE TIPO: Esperamos un objeto 'operacion' en la raíz
 interface OperacionQueryResult {
   operacion: {
     // Los campos de la operación en sí
-    operacion: string; // Añadido operacion aquí para evitar errores de tipo
+    operacion: string;
     workorder: {
       plano: string;
       categoria: string;
@@ -58,7 +60,7 @@ interface OperacionQueryResult {
   } | null;
 }
 
-// ---------- Utilidad de Ordenamiento (NUEVO) ----------
+// ---------- Utilidad de Ordenamiento ----------
 
 /**
  * Asigna un valor de prioridad a cada estado para el ordenamiento:
@@ -99,6 +101,7 @@ export default function PiezaDashboard() {
           proceso {
             nombre
           }
+          tiempoRealCalculado
         }
       }
     }
@@ -130,6 +133,8 @@ export default function PiezaDashboard() {
       label: p.proceso.nombre,
       minutos: p.tiempoEstimado ? parseFloat(p.tiempoEstimado.toString()) : 0,
       estado: p.estado,
+      // Mapeamos el valor del query (tiempoRealCalculado) al campo local (tiempoReal)
+      tiempoReal: p.tiempoRealCalculado || 0,
     }));
 
     // Lógica de ordenamiento:
@@ -153,9 +158,11 @@ export default function PiezaDashboard() {
         ? ((DONECount + inProgressCount * 0.5) / totalSteps) * 100
         : 0;
 
-    const spentMinutes = displayProcesos
-      .filter((p) => p.estado === "done" || p.estado === "in_progress")
-      .reduce((acc, p) => acc + p.minutos, 0);
+    // Calculamos spentMinutes sumando tiempo real (si existe) y estimado
+    const spentMinutes = displayProcesos.reduce((acc, p) => {
+      // Si el proceso ya tiene tiempo real, lo usamos; si no, usamos estimado o 0
+      return acc + (p.tiempoReal ?? p.minutos);
+    }, 0);
 
     return {
       DONECount,
@@ -346,8 +353,9 @@ export default function PiezaDashboard() {
                 <TableRow>
                   <TableHead className="w-12 text-center">#</TableHead>
                   <TableHead>Proceso</TableHead>
-                  <TableHead className="text-center">Minutos</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
+                  <TableHead className="text-center">Est. (min)</TableHead>
+                  <TableHead className="text-center">Real (min)</TableHead>
+                  {/* Columna 'Estado' eliminada */}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -356,29 +364,22 @@ export default function PiezaDashboard() {
                     <TableCell className="text-center">{i + 1}</TableCell>
                     <TableCell>{p.label}</TableCell>
                     <TableCell className="text-center">{p.minutos}</TableCell>
+                    {/* MOSTRAR TIEMPO REAL CALCULADO */}
                     <TableCell className="text-center">
-                      {p.estado === "done" && <Badge>Completado</Badge>}
-                      {p.estado === "in_progress" && (
-                        <Badge variant="secondary">En proceso</Badge>
-                      )}
-                      {p.estado === "scrap" && (
-                        <Badge variant="destructive">Scrap</Badge> // Usar variante destructiva
-                      )}
-                      {p.estado === "pending" && (
-                        <Badge variant="outline">Pendiente</Badge>
-                      )}
+                      {p.tiempoReal !== null ? p.tiempoReal : "—"}
                     </TableCell>
+                    {/* Celda 'Estado' eliminada */}
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell />
-                  <TableCell className="font-medium">
-                    Total (completado + en proceso)
+                  <TableCell className="font-medium" colSpan={2}>
+                    Total Acumulado
                   </TableCell>
                   <TableCell className="text-center font-medium">
                     {totals.spentMinutes}
                   </TableCell>
-                  <TableCell />
+                  {/* Celda extra eliminada */}
                 </TableRow>
               </TableBody>
             </Table>
