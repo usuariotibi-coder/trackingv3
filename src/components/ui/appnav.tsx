@@ -9,7 +9,7 @@ const links = [
   { href: "/intake", label: "Planeación" },
   { href: "/piezas", label: "WorkOrder" },
   { href: "/machines", label: "Dashboard" },
-  { href: "/principal", label: "New" },
+  { href: "/newentries", label: "New" },
 ];
 
 export default function AppNav() {

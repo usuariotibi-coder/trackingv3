@@ -17,7 +17,8 @@ export default function Home() {
 
           <div>
             <Link
-              to="/seguimiento/intake"
+              //to="/seguimiento/intake"
+              to="/projects"
               className="group inline-flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-medium shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
             >
               Empezar ahora
