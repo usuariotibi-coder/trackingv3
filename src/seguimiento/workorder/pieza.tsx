@@ -158,10 +158,19 @@ export default function PiezaDashboard() {
         ? ((DONECount + inProgressCount * 0.5) / totalSteps) * 100
         : 0;
 
-    // Calculamos spentMinutes sumando tiempo real (si existe) y estimado
+    // --- CÁLCULO NUEVO: Tiempo estimado total ---
+    const estimatedMinutes = displayProcesos.reduce((acc, p) => {
+      return acc + p.minutos; // p.minutos es el tiempo estimado
+    }, 0);
+    // ---------------------------------------------
+
+    // Calculamos spentMinutes (Tiempo Real Acumulado)
     const spentMinutes = displayProcesos.reduce((acc, p) => {
-      // Si el proceso ya tiene tiempo real, lo usamos; si no, usamos estimado o 0
-      return acc + (p.tiempoReal ?? p.minutos);
+      // Si el proceso ya tiene tiempo real (p.tiempoReal), lo usamos; si no, 0.
+      return acc + (p.tiempoReal ?? 0);
+      // NOTA: Cambié p.minutos a 0 en el fallback para que spentMinutes solo muestre tiempo REAL
+      // Si quieres que muestre REAL + ESTIMADO para lo que no ha iniciado, usa (p.tiempoReal ?? p.minutos)
+      // Me mantendré en usar SOLO REAL (p.tiempoReal ?? 0) para el total de la tabla.
     }, 0);
 
     return {
@@ -169,7 +178,8 @@ export default function PiezaDashboard() {
       inProgressCount,
       totalSteps,
       completedRatio: Math.round(completedRatio),
-      spentMinutes: Math.round(spentMinutes), // Redondea los minutos totales
+      spentMinutes: Math.round(spentMinutes), // Tiempo REAL acumulado
+      estimatedMinutes: Math.round(estimatedMinutes), // Tiempo ESTIMADO total (NUEVO)
     };
   }, [displayProcesos]);
 
@@ -371,12 +381,17 @@ export default function PiezaDashboard() {
                     {/* Celda 'Estado' eliminada */}
                   </TableRow>
                 ))}
-                <TableRow>
+                <TableRow className="border-t-2 border-primary/50 bg-neutral-50 dark:bg-neutral-900/50">
+                  {" "}
+                  {/* Línea de total destacada */}
                   <TableCell />
-                  <TableCell className="font-medium" colSpan={2}>
-                    Total Acumulado
+                  <TableCell className="font-semibold">Total Global</TableCell>
+                  {/* CELDAS MODIFICADAS: Aquí va el total estimado */}
+                  <TableCell className="text-center font-semibold">
+                    {totals.estimatedMinutes}
                   </TableCell>
-                  <TableCell className="text-center font-medium">
+                  {/* Aquí va el total real acumulado */}
+                  <TableCell className="text-center font-semibold">
                     {totals.spentMinutes}
                   </TableCell>
                   {/* Celda extra eliminada */}

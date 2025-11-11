@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardHeader,
@@ -34,10 +33,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  TriangleAlert, // NUEVO: para Rechazo/Scrap
+  PauseCircle, // NUEVO: para Pausa
+  Bug, // NUEVO: para Problema
 } from "lucide-react";
+
+// NUEVOS COMPONENTES: Modal (Dialog) y Textarea
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 /* --------------------------------- Tipos ---------------------------------- */
 type ScanStatus = "ok" | "error" | "warning";
+type ModalActionType = "rechazo" | "pausa" | "problema" | "";
 
 interface ScanItem {
   id: string; // uuid-like
@@ -56,6 +70,7 @@ interface ProcesoOp {
   horaFin: string | null;
   tiempoRealCalculado: number | null;
   tiempoEstimado: number | null;
+  observaciones: string | null; // Asumimos que se agregó al type en Strawberry
   proceso: {
     id: string;
     nombre: string;
@@ -110,22 +125,27 @@ function uuid() {
 
 /* ----------------------------- Componente Page ----------------------------- */
 export default function ScanStation() {
-  const navigate = useNavigate();
-  const [employeeId, setEmployeeId] = useState(""); // Número de empleado (Input)
-  const [locked, setLocked] = useState(false); // Operador bloqueado
-  const [workOrder, setWorkOrder] = useState(""); // Número de Operación (Input)
+  const [employeeId, setEmployeeId] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [workOrder, setWorkOrder] = useState("");
   const [recent, setRecent] = useState<ScanItem[]>(() => readScans());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
 
+  // --- NUEVOS ESTADOS para el Modal de Motivos ---
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<ModalActionType>("");
+  const [motivo, setMotivo] = useState("");
+  // --------------------------------------------------
+
   const woInputRef = useRef<HTMLInputElement | null>(null);
   const empInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 1. Query de Usuario (Basado en el input del empleado)
+  // ... (Query GET_USUARIO se mantiene igual)
   const GET_USUARIO = gql`
     query GetUsuario($numero: String!) {
       usuario(numero: $numero) {
-        id # Necesitamos el ID para las mutaciones
+        id
         numero
         nombre
         proceso {
@@ -140,18 +160,15 @@ export default function ScanStation() {
     data: dataE,
     loading: loadingE,
     error: errorE,
-    //refetch: refetchE,
   } = useQuery<EmpleadoQueryResult>(GET_USUARIO, {
     variables: { numero: employeeId },
-    //skip: !employeeId || !locked, // Solo buscar si está bloqueado y hay ID
     fetchPolicy: "cache-and-network",
   });
 
-  const procesoId = dataE?.usuario?.proceso?.id; // String ID o undefined
+  const procesoId = dataE?.usuario?.proceso?.id;
+  const operacion = workOrder;
 
-  const operacion = workOrder; // Usamos el workOrder escaneado como ID de la Operacion
-
-  // 2. Query de Proceso Específico (Se ejecuta automáticamente al tener IDs válidos)
+  // ... (Query GET_PROCESO se mantiene igual)
   const GET_PROCESO = gql`
     query ObtenerProcesoEspecifico($operacion: String!, $procesoId: ID!) {
       procesoOpPorOperacionYProceso(
@@ -178,14 +195,12 @@ export default function ScanStation() {
       operacion: operacion,
       procesoId: procesoId,
     },
-    // Solo se ejecuta si el operador está bloqueado y tenemos ambos IDs válidos
-    //skip: !locked || !operacion || !proceso,
-    fetchPolicy: "network-only", // Siempre obtener la data más fresca
+    fetchPolicy: "network-only",
   });
 
   const procesoEspecifico = dataP?.procesoOpPorOperacionYProceso;
 
-  // 3. Mutación de INICIO
+  // 3. Mutación de INICIO (Se mantiene igual)
   const INICIAR_PROCESO = gql`
     mutation IniciarProceso(
       $procesoOpId: ID!
@@ -215,14 +230,23 @@ export default function ScanStation() {
   const [iniciarProcesoOp, { loading: loadingI, error: errorI }] =
     useMutation(INICIAR_PROCESO);
 
-  // 4. Mutación de FINALIZACIÓN
+  // 4. Mutación de FINALIZACIÓN (MODIFICADA para incluir observaciones)
   const FINALIZAR_PROCESO = gql`
-    mutation FinalizarProceso($procesoOpId: ID!, $estado: String!) {
-      finalizarProcesoOp(procesoOpId: $procesoOpId, nuevoEstado: $estado) {
+    mutation FinalizarProceso(
+      $procesoOpId: ID!
+      $estado: String!
+      $observaciones: String # Campo para el motivo/observación
+    ) {
+      finalizarProcesoOp(
+        procesoOpId: $procesoOpId
+        nuevoEstado: $estado
+        observaciones: $observaciones
+      ) {
         id
         estado
         horaFin
         tiempoRealCalculado
+        observaciones
       }
     }
   `;
@@ -232,6 +256,7 @@ export default function ScanStation() {
 
   console.log(errorI);
   console.log(errorF);
+
   // ------------------------- Lógica de Scaneo y Flujo -------------------------
 
   const handleScanAction = async () => {
@@ -267,12 +292,13 @@ export default function ScanStation() {
         });
         addScan("ok", `Proceso iniciado: ${procesoEspecifico.proceso.nombre}`);
       } else if (estado === "in_progress") {
-        // --- FINALIZAR PROCESO ---
+        // --- FINALIZAR PROCESO (DONE) ---
         nuevoEstado = "done";
         await finalizarProcesoOp({
           variables: {
             procesoOpId: procesoOpId,
             estado: nuevoEstado,
+            observaciones: null, // No hay observaciones en el OK
           },
         });
         addScan(
@@ -287,7 +313,6 @@ export default function ScanStation() {
         addScan("error", `Estado desconocido: ${estado}.`);
       }
 
-      // Después de la mutación, refetch para actualizar la vista (aunque network-only ya ayuda)
       refetchP();
     } catch (e: any) {
       console.error("Error en la mutación:", e);
@@ -296,21 +321,9 @@ export default function ScanStation() {
   };
 
   const handleLockOperator = () => {
-    // if (!employeeId || loadingE) {
-    //   return alert("Número de empleado no válido o cargando.");
-    // }
-    if (errorE) {
-      //return alert("Error al buscar empleado. Verifica el número.");
+    if (errorE || !dataE?.usuario) {
+      // Permitir continuar si hay datos
     }
-    if (!dataE?.usuario) {
-      //return alert("Empleado no encontrado.");
-    }
-    // if (!dataE.usuario.proceso) {
-    //   return alert(
-    //     `Empleado ${dataE.usuario.nombre} no tiene un Proceso de trabajo asignado.`
-    //   );
-    // }
-
     setLocked(true);
     setTimeout(() => woInputRef.current?.focus(), 0);
   };
@@ -331,7 +344,6 @@ export default function ScanStation() {
       note,
     };
 
-    // Imprimir los datos del escaneo en la consola
     console.log("Registro de Escaneo:", {
       employeeId: employeeId,
       workOrder: workOrder,
@@ -349,12 +361,6 @@ export default function ScanStation() {
   function handleSubmitScan(e?: React.FormEvent) {
     e?.preventDefault();
 
-    console.log("➡️ Captura en Submit:", {
-      employeeId: employeeId,
-      workOrder: workOrder,
-      locked: locked,
-    });
-
     if (!locked) return handleLockOperator();
 
     // 1. Validar el formato de la Operación
@@ -369,12 +375,11 @@ export default function ScanStation() {
       return;
     }
 
-    // 3. Si ya tenemos un ProcesoOp cargado (dataP) y no está cargando (loadingP), ejecutamos la acción.
+    // 3. Ejecutar la acción si tenemos un ProcesoOp cargado y no está cargando
     if (!loadingP && !errorP) {
       if (procesoEspecifico) {
         handleScanAction();
       } else {
-        // No se encontró el ProcesoOp específico para la Operación/Proceso
         addScan(
           "error",
           `Proceso no encontrado para la Operación ${workOrder}.`
@@ -386,6 +391,98 @@ export default function ScanStation() {
       addScan("error", `Error al buscar ProcesoOp: ${errorP?.message}`);
     }
   }
+
+  // --- NUEVA LÓGICA DE RECHAZO (SCRAP) ---
+  const handleScrapAction = async (observaciones: string) => {
+    if (!dataE?.usuario?.id || !procesoEspecifico?.id) {
+      addScan(
+        "error",
+        "Datos de usuario o proceso no encontrados o inválidos (Rechazo)."
+      );
+      return;
+    }
+
+    // Solo se puede marcar como SCRAP si está EN PROGRESO (in_progress)
+    if (procesoEspecifico.estado !== "in_progress") {
+      addScan(
+        "warning",
+        "Solo puedes marcar SCRAP si el proceso está en progreso."
+      );
+      setModalOpen(false);
+      return;
+    }
+
+    const procesoOpId = procesoEspecifico.id;
+    const nuevoEstado = "scrap";
+
+    try {
+      await finalizarProcesoOp({
+        variables: {
+          procesoOpId: procesoOpId,
+          estado: nuevoEstado,
+          observaciones: observaciones,
+        },
+      });
+      addScan(
+        "error",
+        `Proceso marcado como SCRAP: ${procesoEspecifico.proceso.nombre}`
+      );
+      refetchP(); // Actualizar la vista
+    } catch (e: any) {
+      console.error("Error en la mutación SCRAP:", e);
+      addScan("error", `Error en servidor (SCRAP): ${e.message.split(":")[0]}`);
+    } finally {
+      setModalOpen(false);
+      setMotivo("");
+    }
+  };
+
+  // --- LÓGICA DE MODAL DE ACCIÓN ---
+  const openReasonModal = (type: ModalActionType) => {
+    // Si no está bloqueado o no hay WO válido, no puede usar las acciones rápidas
+    if (!locked || !workOrder || !procesoEspecifico) {
+      addScan(
+        "warning",
+        "Captura un Operador y WO válidos antes de usar esta acción."
+      );
+      return;
+    }
+    // Si no está en progreso, solo se permite en el futuro.
+    if (procesoEspecifico.estado !== "in_progress" && type !== "problema") {
+      addScan(
+        "warning",
+        `La acción '${type}' solo está disponible para procesos 'en progreso'.`
+      );
+      return;
+    }
+
+    setModalType(type);
+    setMotivo("");
+    setModalOpen(true);
+  };
+
+  const handleConfirmModal = () => {
+    if (motivo.length < 5) {
+      alert(
+        "Por favor, ingresa una descripción o motivo de al menos 5 caracteres."
+      );
+      return;
+    }
+
+    if (modalType === "rechazo") {
+      handleScrapAction(motivo);
+    } else if (modalType === "pausa") {
+      // Lógica FUTURA: Mutación de Pausa
+      addScan("warning", `Pausa registrada (FALTA MUTACIÓN): ${motivo}`);
+      setModalOpen(false);
+      setMotivo("");
+    } else if (modalType === "problema") {
+      // Lógica FUTURA: Mutación de Problema/Incidente
+      addScan("warning", `Problema reportado (FALTA MUTACIÓN): ${motivo}`);
+      setModalOpen(false);
+      setMotivo("");
+    }
+  };
 
   // Enfoque inicial y Guardar historial
   useEffect(() => {
@@ -432,6 +529,7 @@ export default function ScanStation() {
     console.log(workOrder);
   }
 
+  // Renderizado
   return (
     <div className="mx-auto max-w-5xl p-6">
       {/* Header */}
@@ -468,7 +566,6 @@ export default function ScanStation() {
                   <Input
                     ref={empInputRef}
                     inputMode="numeric"
-                    //disabled={locked || loadingE}
                     placeholder="Ej. 1234"
                     value={employeeId}
                     onChange={(e) => setEmployeeId(e.target.value.trim())}
@@ -507,7 +604,6 @@ export default function ScanStation() {
                     placeholder="WO-123456 o ID de Operación"
                     value={workOrder}
                     onChange={(e) => setWorkOrder(e.target.value.trim())}
-                    // disabled={!locked || loadingI || loadingF}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSubmitScan();
                     }}
@@ -549,7 +645,6 @@ export default function ScanStation() {
           </CardContent>
 
           <CardFooter className="flex items-center justify-between text-sm text-muted-foreground">
-            {/* ... (Footer de historial) ... */}
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
               <span>
@@ -659,118 +754,217 @@ export default function ScanStation() {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Panel de Historial (Resto de la tabla) */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Historial Local</CardTitle>
-            <CardDescription>Historial local de escaneos.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
+      {/* --- SECCIÓN DE OTRAS ACCIONES --- */}
+      <h2 className="text-sm font-medium text-muted-foreground mt-6 mb-3">
+        Otras acciones
+      </h2>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* --- Rechazo (SCRAP) --- */}
+        <div className="flex flex-col items-center gap-2">
+          <Button
+            variant="destructive"
+            className="w-full gap-2"
+            onClick={() => openReasonModal("rechazo")}
+            disabled={
+              !procesoEspecifico || procesoEspecifico.estado !== "in_progress"
+            }
+          >
+            <TriangleAlert className="h-4 w-4" /> Registrar rechazo
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Usa este botón cuando una pieza no cumple tolerancia o debe
+            descartarse.
+          </p>
+        </div>
+
+        {/* --- Pausa --- */}
+        <div className="flex flex-col items-center gap-2">
+          <Button
+            className="w-full gap-2 bg-yellow-500 hover:bg-yellow-600 text-black"
+            onClick={() => openReasonModal("pausa")}
+            disabled={
+              !procesoEspecifico || procesoEspecifico.estado !== "in_progress"
+            }
+          >
+            <PauseCircle className="h-4 w-4" /> Registrar pausa
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Registra un tiempo de inactividad por descanso o comida.
+          </p>
+        </div>
+
+        {/* --- Problema --- */}
+        <div className="flex flex-col items-center gap-2">
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => openReasonModal("problema")}
+            disabled={!procesoEspecifico || !workOrder} // Permitir reportar problemas aunque no esté en progreso (si hay WO)
+          >
+            <Bug className="h-4 w-4" /> Registrar problema
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Informa incidentes o alarmas detectadas en la máquina.
+          </p>
+        </div>
+      </div>
+
+      {/* --- MODAL DE MOTIVO --- */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {modalType === "rechazo" && "Motivo del rechazo (SCRAP)"}
+              {modalType === "pausa" && "Motivo de la pausa"}
+              {modalType === "problema" && "Descripción del problema"}
+            </DialogTitle>
+            <DialogDescription>
+              {modalType === "rechazo" &&
+                "Por favor, explica detalladamente por qué la pieza debe ser descartada."}
+              {modalType === "pausa" &&
+                "Registra brevemente el motivo de la pausa (ej: 'Descanso', 'Comida', 'Fallo máquina')."}
+              {modalType === "problema" &&
+                "Describe el incidente o alarma detectada. Un supervisor será notificado."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Label htmlFor="motivo-text">Detalles (mín. 5 caracteres)</Label>
+            <Textarea
+              id="motivo-text"
+              placeholder="Ej: Tolerancia fuera de rango, falta de material, etc."
+              rows={4}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setModalOpen(false)}
+              disabled={loadingF}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant={modalType === "rechazo" ? "destructive" : "default"}
+              onClick={handleConfirmModal}
+              disabled={motivo.length < 5 || loadingF}
+            >
+              {loadingF
+                ? "Procesando..."
+                : `Confirmar ${modalType.toUpperCase()}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Panel de Historial */}
+      <Card className="lg:col-span-3 mt-6">
+        <CardHeader>
+          <CardTitle>Historial Local</CardTitle>
+          <CardDescription>Historial local de escaneos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">
+                    Fecha/Hora
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">Empleado</TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    Work Order
+                  </TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
+                  <TableHead>Nota</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slice.length === 0 ? (
                   <TableRow>
-                    <TableHead className="whitespace-nowrap">
-                      Fecha/Hora
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      Empleado
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">
-                      Work Order
-                    </TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                    <TableHead>Nota</TableHead>
+                    <TableCell
+                      colSpan={5}
+                      className="py-10 text-center text-sm text-muted-foreground"
+                    >
+                      Aún no hay escaneos.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {slice.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="py-10 text-center text-sm text-muted-foreground"
-                      >
-                        Aún no hay escaneos.
+                ) : (
+                  slice.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-sm">
+                        {new Date(r.ts).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {r.employeeId}
+                      </TableCell>
+                      <TableCell className="font-mono">{r.workOrder}</TableCell>
+                      <TableCell className="text-center">
+                        {r.status === "ok" && (
+                          <Badge className="gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> OK
+                          </Badge>
+                        )}
+                        {r.status === "warning" && (
+                          <Badge variant="secondary" className="gap-1">
+                            <AlertCircle className="h-3 w-3" /> Aviso
+                          </Badge>
+                        )}
+                        {r.status === "error" && (
+                          <Badge variant="outline" className="gap-1">
+                            <AlertCircle className="h-3 w-3" /> Error
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.note || ""}
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    slice.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="text-sm">
-                          {new Date(r.ts).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {r.employeeId}
-                        </TableCell>
-                        <TableCell className="font-mono">
-                          {r.workOrder}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {r.status === "ok" && (
-                            <Badge className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" /> OK
-                            </Badge>
-                          )}
-                          {r.status === "warning" && (
-                            <Badge variant="secondary" className="gap-1">
-                              <AlertCircle className="h-3 w-3" /> Aviso
-                            </Badge>
-                          )}
-                          {r.status === "error" && (
-                            <Badge variant="outline" className="gap-1">
-                              <AlertCircle className="h-3 w-3" /> Error
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {r.note || ""}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <Separator className="my-4" />
+
+          {/* Paginación */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Página <span className="font-medium">{pageSafe}</span> de{" "}
+              <span className="font-medium">{totalPages}</span> —{" "}
+              {recent.length} registro(s)
             </div>
-
-            <Separator className="my-4" />
-
-            {/* Paginación */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
-                Página <span className="font-medium">{pageSafe}</span> de{" "}
-                <span className="font-medium">{totalPages}</span> —{" "}
-                {recent.length} registro(s)
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  disabled={pageSafe <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  disabled={pageSafe >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={pageSafe <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={pageSafe >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Acciones rápidas (opcional) */}
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ChevronLeft className="mr-2 h-4 w-4" /> Regresar
-        </Button>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Indicador visual simple del flujo */}
       <div className="mt-8">
