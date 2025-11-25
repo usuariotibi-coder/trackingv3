@@ -32,6 +32,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 // --- Definiciones de tipos y MOCKS de datos ---
 type Area = { id: number; nombre: string };
@@ -165,7 +166,7 @@ function CreateUserCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      alert(`Usuario '${userData.nombre}' creado exitosamente.`);
+      toast.success(`Usuario '${userData.nombre}' creado exitosamente.`);
       setUserData({
         numero: "",
         nombre: "",
@@ -176,10 +177,9 @@ function CreateUserCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewUser);
-      alert(
-        `Error al crear usuario: ${
-          errorNewUser?.message || "Hubo un problema de conexión."
-        }`
+      toast.error(
+        errorNewUser?.message ||
+          "Hubo un problema de conexión al crear el usuario."
       );
     }
   };
@@ -353,7 +353,9 @@ function DeleteUserCard() {
       });
 
       if (data) {
-        alert(`Usuario con número '${numeroToDelete}' eliminado exitosamente.`);
+        toast.success(
+          `Usuario con número '${numeroToDelete}' eliminado exitosamente.`
+        );
         setNumeroToDelete("");
       } else {
         // Esto captura el caso donde la mutación retorna 'false' (si el backend lo hiciera),
@@ -364,7 +366,7 @@ function DeleteUserCard() {
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      alert(
+      toast.error(
         `Error al eliminar usuario: ${
           errorDeleteUser?.message || "Hubo un problema de conexión."
         }`
@@ -471,7 +473,7 @@ function CreateProjectCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      alert(`Proyecto '${projectData.nombre}' creado exitosamente.`);
+      toast.success(`Proyecto '${projectData.nombre}' creado exitosamente.`);
       setProjectData({
         nombre: "",
         descripcion: "",
@@ -479,7 +481,7 @@ function CreateProjectCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewProyect);
-      alert(
+      toast.error(
         `Error al crear proyecto: ${
           errorNewProyect?.message || "Hubo un problema de conexión."
         }`
@@ -602,7 +604,9 @@ function DeleteProjectCard() {
       });
 
       if (data) {
-        alert(`Proyecto '${projectNameToDelete}' eliminado exitosamente.`);
+        toast.success(
+          `Proyecto '${projectNameToDelete}' eliminado exitosamente.`
+        );
         setProjectNameToDelete("");
       } else {
         alert(
@@ -611,7 +615,7 @@ function DeleteProjectCard() {
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      alert(
+      toast.error(
         `Error al eliminar proyecto: ${
           errorDeleteProject?.message || "Hubo un problema de conexión."
         }`
@@ -721,7 +725,7 @@ function CreateMachineCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      alert(`Máquina '${machineData.nombre}' creada exitosamente.`);
+      toast.success(`Máquina '${machineData.nombre}' creada exitosamente.`);
       setMachineData({
         nombre: "",
         procesoId: "",
@@ -729,7 +733,7 @@ function CreateMachineCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewMachine);
-      alert(
+      toast.error(
         `Error al crear máquina: ${
           errorNewMachine?.message || "Hubo un problema de conexión."
         }`
@@ -861,16 +865,18 @@ function DeleteMachineCard() {
       });
 
       if (data) {
-        alert(`Máquina '${machineNameToDelete}' eliminada exitosamente.`);
+        toast.success(
+          `Máquina '${machineNameToDelete}' eliminada exitosamente.`
+        );
         setMachineNameToDelete("");
       } else {
-        alert(
+        toast.error(
           `Error: No se pudo eliminar la máquina '${machineNameToDelete}'.`
         );
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      alert(
+      toast.error(
         `Error al eliminar máquina: ${
           errorDeleteMachine?.message || "Hubo un problema de conexión."
         }`

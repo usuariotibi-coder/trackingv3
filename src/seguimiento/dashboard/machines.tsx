@@ -331,7 +331,9 @@ function MachineCard({ m }: { m: Machine }) {
     <Card className={`border ${color.border} ${color.bg}`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">{m.name}</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            Maquina: {m.name}
+          </CardTitle>
           <span className={`h-2.5 w-2.5 rounded-full ${color.dot}`} />
         </div>
       </CardHeader>

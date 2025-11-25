@@ -338,6 +338,7 @@ export default function IntakeDePlanos() {
         // 1. Obtener el nombre de archivo sugerido del header (si la API lo envía)
         const contentDisposition = response.headers.get("Content-Disposition");
         let filename = `${noOperacion}-Qr.pdf`;
+        //lleve a otra vista
         if (contentDisposition) {
           const match = contentDisposition.match(/filename="?([^"]+)"?/i);
           if (match && match[1]) {
@@ -371,7 +372,20 @@ export default function IntakeDePlanos() {
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json();
           console.error("Error del servidor (DRF):", errorData);
-          toast.error("Error al guardar: " + JSON.stringify(errorData));
+
+          let errorMessage = "Error desconocido al guardar el WorkOrder.";
+
+          // El error de Operacion (unicidad) está anidado en workorder_data
+          // Estructura esperada: { operacion_data: { operacion: ["Error: Ya existe una operación..."] } }
+          if (errorData.operacion_data?.operacion?.[0]) {
+            errorMessage = errorData.operacion_data.operacion[0];
+          } else if (typeof errorData === "object" && errorData !== null) {
+            // Intenta buscar el primer error string en cualquier parte del objeto
+            errorMessage =
+              Object.values(errorData).flat().join(" | ") || errorMessage;
+          }
+
+          toast.error(errorMessage);
         } else {
           console.error("Error del servidor: Respuesta no es JSON.");
           toast.error(
@@ -533,6 +547,7 @@ export default function IntakeDePlanos() {
                   <Label>No. de operación</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="clave-operacion"
                       placeholder="WO-XXXX-YYMMDD-HHMM"
                       value={noOperacion}
                       onChange={(e) => setNoOperacion(e.target.value)}
