@@ -658,7 +658,7 @@ export default function IntakeDePlanos() {
                 <Button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={!noProyecto || !noPlano}
+                  disabled={!noProyecto || !noPlano || !noOperacion}
                 >
                   <Printer className="h-4 w-4 mr-1" /> Imprimir hoja
                 </Button>
