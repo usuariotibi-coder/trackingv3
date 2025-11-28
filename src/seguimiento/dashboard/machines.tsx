@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 // -------------------------------
 // 1. Tipos Locales y Utilerías
 // -------------------------------
-type MachineStatus = "running" | "idle" | "maintenance";
+type MachineStatus = "running" | "idle" | "maintenance" | "paused";
 
 type Machine = {
   id: string;
@@ -67,6 +67,8 @@ function barPct(elapsed: number, target: number) {
 function mapStatus(serverStatus: string): MachineStatus {
   const lowerStatus = serverStatus.toLowerCase();
   if (lowerStatus.includes("mantenimiento")) return "maintenance";
+  if (lowerStatus.includes("paused") || lowerStatus.includes("pausado"))
+    return "paused";
   if (
     lowerStatus.includes("activo") ||
     lowerStatus.includes("trabajando") ||
@@ -84,6 +86,14 @@ function statusColor(machine: Machine) {
       dot: "bg-sky-500",
       text: "text-sky-700",
       bar: "bg-sky-500",
+    };
+  if (machine.status === "paused")
+    return {
+      bg: "bg-orange-50",
+      border: "border-orange-200",
+      dot: "bg-orange-500",
+      text: "text-orange-700",
+      bar: "bg-orange-500",
     };
   if (machine.status === "idle")
     return {
@@ -128,9 +138,9 @@ function statusColor(machine: Machine) {
 function transformDataToMachines(data: ProcesosOpQueryResult): Machine[] {
   if (!data?.procesosOperacion) return [];
 
-  // ✅ FILTRO CLAVE: Solo procesar ítems cuyo estado sea "in_progress"
+  const activeStatuses = ["in_progress", "paused"];
   return data.procesosOperacion
-    .filter((item) => item.estado.toLowerCase() === "in_progress")
+    .filter((item) => activeStatuses.includes(item.estado.toLowerCase()))
     .map((item) => {
       // Usamos el operador ternario para manejar la potencial nulidad de usuario/proceso
       const operatorName = item.usuario ? item.usuario.nombre : null;
@@ -191,7 +201,7 @@ export default function MaquinasDashboard() {
 
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MachineStatus>(
-    "running" // Cambiado el filtro inicial a 'running' ya que solo cargamos estos
+    "all" // Cambiado el filtro inicial a 'running' ya que solo cargamos estos
   );
   const [tick, setTick] = useState(0); // para re-renderizar el elapsed cada 30s
 
@@ -270,6 +280,7 @@ export default function MaquinasDashboard() {
                 <SelectItem value="running">Trabajando</SelectItem>
                 <SelectItem value="idle">Inactivos</SelectItem>
                 <SelectItem value="maintenance">Mantenimiento</SelectItem>
+                <SelectItem value="paused">Pausado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -285,6 +296,7 @@ export default function MaquinasDashboard() {
           />
           <LegendDot className="bg-slate-400" label="Inactivo" />
           <LegendDot className="bg-sky-500" label="Mantenimiento" />
+          <LegendDot className="bg-orange-500" label="Pausado" />
         </div>
 
         {/* Grid de máquinas */}
@@ -411,6 +423,9 @@ function MachineCard({ m }: { m: Machine }) {
           )}
           {m.status === "maintenance" && (
             <Badge className="bg-sky-600 hover:bg-sky-600">Mantenimiento</Badge>
+          )}
+          {m.status === "paused" && (
+            <Badge className="bg-orange-600 hover:bg-orange-600">Pausado</Badge>
           )}
         </div>
       </CardContent>

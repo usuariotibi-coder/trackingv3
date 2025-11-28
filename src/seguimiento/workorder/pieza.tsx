@@ -33,7 +33,7 @@ type DisplayPaso = {
   tiempoReal: number | null; // Usaremos el tiempo real calculado
 };
 
-type Estado = "pending" | "in_progress" | "done" | "scrap";
+type Estado = "pending" | "in_progress" | "done" | "scrap" | "paused";
 
 interface ProcesoOperacion {
   proceso: {
@@ -75,9 +75,11 @@ function getEstadoOrder(estado: Estado): number {
       return 2;
     case "in_progress":
       return 3;
+    case "paused":
+      return 4;
     case "pending":
     default:
-      return 4;
+      return 5;
   }
 }
 
@@ -324,8 +326,11 @@ export default function PiezaDashboard() {
                   icon = <XCircle className="h-4 w-4" />; // Usar XCircle
                   tone = "bg-red-50 border-red-200 text-red-800";
                   badgeText = "Rechazo";
+                } else if (p.estado === "paused") {
+                  icon = <Clock className="h-4 w-4" />;
+                  tone = "bg-orange-50 border-orange-200 text-orange-800";
+                  badgeText = "Pausado";
                 } else {
-                  // pending
                   icon = <Circle className="h-4 w-4" />;
                   tone = "bg-muted text-foreground/70 border";
                   badgeText = "Pendiente";

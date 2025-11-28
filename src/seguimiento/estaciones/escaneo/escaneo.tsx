@@ -263,7 +263,7 @@ export default function ScanStation() {
       $procesoOpId: ID!
       $usuarioId: ID!
       $estado: String!
-      $maquinaId: ID # Acepta ID opcional (aunque aquí será obligatorio si hay máquinas)
+      $maquinaId: ID
     ) {
       iniciarProcesoOp(
         procesoOpId: $procesoOpId
@@ -287,12 +287,48 @@ export default function ScanStation() {
   const [iniciarProcesoOp, { loading: loadingI, error: errorI }] =
     useMutation(INICIAR_PROCESO);
 
+  const UPDATE_STATUS = gql`
+    mutation UpdateStatus(
+      $procesoOpId: ID!
+      $estado: String!
+      $observaciones: String
+    ) {
+      actualizarEstadoOp(
+        procesoOpId: $procesoOpId
+        nuevoEstado: $estado
+        observaciones: $observaciones
+      ) {
+        id
+        estado
+        horaFin
+        tiempoRealCalculado
+        observaciones
+      }
+    }
+  `;
+
+  const [
+    updateStatus,
+    { loading: loadingUpdateStatus, error: errorUpdateStatus },
+  ] = useMutation(UPDATE_STATUS, {
+    // Asegúrate de recargar la operación y los datos de la máquina tras la pausa
+    refetchQueries: ["GetOperacionActual", "GetMaquinaDetail"],
+    awaitRefetchQueries: true,
+  });
+
+  useEffect(() => {
+    if (procesoEspecifico) {
+      // Si el estado que viene del servidor es 'paused', establecemos isPaused a true.
+      setIsPaused(procesoEspecifico.estado === "paused");
+    }
+  }, [procesoEspecifico]);
+
   // 5. Mutación de FINALIZACIÓN (MODIFICADA para incluir observaciones)
   const FINALIZAR_PROCESO = gql`
     mutation FinalizarProceso(
       $procesoOpId: ID!
       $estado: String!
-      $observaciones: String # Campo para el motivo/observación
+      $observaciones: String
     ) {
       finalizarProcesoOp(
         procesoOpId: $procesoOpId
@@ -399,6 +435,11 @@ export default function ScanStation() {
         addScan("warning", "El proceso ya está completado.");
       } else if (estado === "scrap") {
         addScan("warning", "El proceso fue marcado como SCRAP.");
+      } else if (estado === "paused") {
+        addScan(
+          "warning",
+          "El proceso está PAUSADO. Use el botón 'Reanudar' para continuar."
+        );
       } else {
         addScan("error", `Estado desconocido: ${estado}.`);
       }
@@ -407,6 +448,51 @@ export default function ScanStation() {
     } catch (e: any) {
       console.error("Error en la mutación:", e);
       addScan("error", `Error en servidor: ${e.message.split(":")[0]}`);
+    }
+  };
+
+  const handlePauseResumeAction = async (observaciones: string) => {
+    // Si ya está pausado localmente, la acción es REANUDAR ("in_progress").
+    // Si NO está pausado, la acción es PAUSAR ("paused").
+    const newState = isPaused ? "in_progress" : "paused";
+
+    try {
+      await updateStatus({
+        variables: {
+          procesoOpId: procesoEspecifico?.id,
+          estado: newState, // Usamos el estado dinámico
+          observaciones: observaciones,
+        },
+      });
+
+      // Actualización de estado local y log en historial
+      if (newState === "paused") {
+        setIsPaused(true);
+        addScan(
+          "warning",
+          `Proceso Pausado. Motivo: ${observaciones.substring(0, 30)}...`
+        );
+      } else {
+        setIsPaused(false);
+        addScan(
+          "ok",
+          `Proceso Reanudado. Motivo: ${observaciones.substring(0, 30)}...`
+        );
+      }
+
+      refetchP(); // Actualizar la vista de la operación
+    } catch (e: any) {
+      console.error(`Error en la mutación ${newState.toUpperCase()}:`, e);
+      addScan(
+        "error",
+        `Error en servidor (${newState.toUpperCase()}): ${
+          e.message.split(":")[0]
+        }`
+      );
+      console.log(errorUpdateStatus);
+    } finally {
+      setModalOpen(false);
+      setMotivo("");
     }
   };
 
@@ -581,6 +667,7 @@ export default function ScanStation() {
     setModalOpen(true);
 
     if (type === "pausa") {
+      // 👈 SIMPLIFICAMOS AQUÍ: El modalType debe reflejar la acción real.
       setModalType(isPaused ? "reanudacion" : "pausa");
     } else {
       setModalType(type);
@@ -598,17 +685,11 @@ export default function ScanStation() {
       return;
     }
 
-    // Homologamos las acciones "pausa" y "reanudacion" en un solo bloque
     if (modalType === "rechazo") {
       handleScrapAction(motivo);
     } else if (modalType === "pausa" || modalType === "reanudacion") {
-      if (isPaused) {
-        // Si el estado es Pausado (y se presionó Reanudar)
-        handleRegisterAction("PAUSA_FIN", motivo);
-      } else {
-        // Si el estado NO es Pausado (y se presionó Pausa)
-        handleRegisterAction("PAUSA_INICIO", motivo);
-      }
+      // 👈 AHORA LLAMA DIRECTAMENTE A LA FUNCIÓN UNIFICADA
+      handlePauseResumeAction(motivo);
     } else if (modalType === "problema") {
       handleRegisterAction("PROBLEMA", motivo);
     }
@@ -942,15 +1023,24 @@ export default function ScanStation() {
                 ? "bg-green-500 hover:bg-green-600"
                 : "bg-yellow-500 hover:bg-yellow-600"
             } text-black`}
-            onClick={() => openReasonModal("pausa")}
+            onClick={() => openReasonModal("pausa")} // El modalType será manejado en openReasonModal
             disabled={
               !procesoEspecifico ||
               procesoEspecifico.estado === "done" ||
-              procesoEspecifico.estado === "scrap"
+              procesoEspecifico.estado === "scrap" ||
+              loadingUpdateStatus // 👈 Deshabilitar mientras carga la mutación
             }
           >
             <PauseCircle className="h-4 w-4" />{" "}
-            {isPaused ? "Reanudar proceso" : "Registrar pausa"}
+            {
+              loadingUpdateStatus
+                ? isPaused
+                  ? "Reanudando..."
+                  : "Pausando..." // Mostrar loading
+                : isPaused
+                ? "Reanudar proceso"
+                : "Registrar pausa" // Mostrar texto normal
+            }
           </Button>
           <p className="text-xs text-muted-foreground text-center">
             {isPaused
