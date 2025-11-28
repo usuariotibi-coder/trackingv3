@@ -42,11 +42,7 @@ const MOCK_AREAS: Area[] = [
   { id: 1, nombre: "Planeación" },
   { id: 2, nombre: "Manufactura" },
   { id: 3, nombre: "Calidad" },
-  { id: 4, nombre: "Corte" },
-  { id: 5, nombre: "Escuadre" },
-  { id: 6, nombre: "Programación CNC" },
-  { id: 7, nombre: "CNC" },
-  { id: 8, nombre: "Almacen" },
+  { id: 4, nombre: "Almacen" },
 ];
 
 const MOCK_PROCESOS: Proceso[] = [
@@ -58,6 +54,7 @@ const MOCK_PROCESOS: Proceso[] = [
   { id: 6, nombre: "Pintura" },
   { id: 7, nombre: "Inspección / Limpieza / Acabados" },
   { id: 8, nombre: "Calidad" },
+  { id: 10, nombre: "Almacen" },
 ];
 
 export default function NewEntryPage() {
