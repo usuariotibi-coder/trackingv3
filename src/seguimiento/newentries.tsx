@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectTrigger,
@@ -301,7 +302,9 @@ function CreateUserCard() {
               disabled={loadingNewUser}
             >
               {loadingNewUser ? (
-                "Guardando..."
+                <>
+                  <Spinner /> Guardando...
+                </>
               ) : (
                 <>
                   <Save className="h-4 w-4" /> Guardar Usuario
@@ -415,7 +418,9 @@ function DeleteUserCard() {
               disabled={loadingDeleteUser}
             >
               {loadingDeleteUser ? (
-                "Eliminando..."
+                <>
+                  <Spinner /> Eliminando...
+                </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4" /> Eliminar Usuario
@@ -550,7 +555,9 @@ function CreateProjectCard() {
               disabled={loadingNewProyect}
             >
               {loadingNewProyect ? (
-                "Guardando..."
+                <>
+                  <Spinner /> Guardando...
+                </>
               ) : (
                 <>
                   <Save className="h-4 w-4" /> Guardar Proyecto
@@ -665,7 +672,9 @@ function DeleteProjectCard() {
               disabled={loadingDeleteProject}
             >
               {loadingDeleteProject ? (
-                "Eliminando..."
+                <>
+                  <Spinner /> Eliminando...
+                </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4" /> Eliminar Proyecto
@@ -811,7 +820,9 @@ function CreateMachineCard() {
               disabled={loadingNewMachine}
             >
               {loadingNewMachine ? (
-                "Guardando..."
+                <>
+                  <Spinner /> Guardando...
+                </>
               ) : (
                 <>
                   <Save className="h-4 w-4" /> Guardar Máquina
@@ -925,7 +936,9 @@ function DeleteMachineCard() {
               disabled={loadingDeleteMachine}
             >
               {loadingDeleteMachine ? (
-                "Eliminando..."
+                <>
+                  <Spinner /> Eliminando...
+                </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4" /> Eliminar Máquina

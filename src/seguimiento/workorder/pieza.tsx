@@ -52,6 +52,7 @@ interface OperacionQueryResult {
     workorder: {
       plano: string;
       categoria: string;
+      cantidad: number;
       proyecto: {
         proyecto: string;
       };
@@ -91,6 +92,7 @@ export default function PiezaDashboard() {
         workorder {
           plano
           categoria
+          cantidad
           proyecto {
             proyecto
           }
@@ -269,6 +271,12 @@ export default function PiezaDashboard() {
               <Badge variant="outline">
                 {operacion.workorder.categoria || "—"}
               </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Cantidad</span>
+              <span className="font-medium">
+                {operacion.workorder.cantidad}
+              </span>
             </div>
 
             <Separator />

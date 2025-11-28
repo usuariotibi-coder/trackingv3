@@ -12,6 +12,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -83,7 +84,7 @@ const PROCESOS_PRESET = [
   },
   { key: 8, enabled: false, label: "Calidad", minutos: 0 },
   { key: 9, enabled: false, label: "Enviado a Externos", minutos: 0 },
-  { key: 10, enabled: false, label: "Custom", minutos: 0 },
+  { key: 10, enabled: false, label: "Proceso personalizado", minutos: 0 },
 ] as const;
 
 type ProcesoKey = (typeof PROCESOS_PRESET)[number]["key"];
@@ -138,6 +139,7 @@ export default function IntakeDePlanos() {
   const [tipo, setTipo] = useState<string | undefined>(undefined);
   const [material, setMaterial] = useState<string | undefined>(undefined);
   const [categoria, setCategoria] = useState<string | undefined>(undefined);
+  const [cantidad, setCantidad] = useState<number | undefined>(undefined);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [observaciones, setObservaciones] = useState("");
 
@@ -150,6 +152,8 @@ export default function IntakeDePlanos() {
       minutos: p.minutos === 0 ? "" : p.minutos,
     }))
   );
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const printRef = useRef<HTMLDivElement | null>(null);
 
@@ -180,6 +184,7 @@ export default function IntakeDePlanos() {
       tipo: tipo || null,
       material: material || null,
       categoria: categoria || null,
+      cantidad: cantidad || null,
       procesos: activos,
       totalMin,
       ts: Date.now(),
@@ -191,6 +196,7 @@ export default function IntakeDePlanos() {
     tipo,
     material,
     categoria,
+    cantidad,
     procesos,
     totalMin,
   ]);
@@ -235,12 +241,11 @@ export default function IntakeDePlanos() {
 
   const addProcesoCustom = () => {
     // Generar una clave única (ej: timestamp o UUID simplificado)
-    const nuevoKey = Date.now();
 
     setProcesos((arr) => [
       ...arr,
       {
-        key: nuevoKey, // Asignar la clave única
+        key: 10,
         label: "Proceso personalizado",
         enabled: true,
         minutos: "",
@@ -264,6 +269,7 @@ export default function IntakeDePlanos() {
     setTipo(undefined);
     setMaterial(undefined);
     setCategoria(undefined);
+    setCantidad(undefined);
     setArchivo(null);
     setObservaciones("");
     setNoOperacion("");
@@ -278,6 +284,7 @@ export default function IntakeDePlanos() {
   };
 
   const handleSubmit = async () => {
+    setIsSubmitting(true);
     // 1. Prepara la lista de ProcesoPlano
     const procesos_operacion = procesos
       .filter((p) => p.enabled === true && p.minutos)
@@ -304,6 +311,7 @@ export default function IntakeDePlanos() {
       tipo: tipo,
       material: material,
       categoria: categoria,
+      cantidad: cantidad,
       observaciones: observaciones,
 
       operacion_data: operacionData,
@@ -398,6 +406,8 @@ export default function IntakeDePlanos() {
     } catch (error) {
       console.error("Error de conexión:", error);
       toast.error("Ocurrió un error de conexión.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -448,6 +458,7 @@ export default function IntakeDePlanos() {
                 <div>
                   <Label htmlFor="noPlano">No. de Plano *</Label>
                   <Input
+                    className="w-full"
                     id="noPlano"
                     placeholder="3272-A-001"
                     value={noPlano}
@@ -466,7 +477,7 @@ export default function IntakeDePlanos() {
                       value={noProyecto}
                       onValueChange={setNoProyecto} // noProyecto se establece al ID del proyecto
                     >
-                      <SelectTrigger id="noProyecto">
+                      <SelectTrigger id="noProyecto" className="w-full">
                         <SelectValue placeholder="Selecciona un proyecto (ej: 3272)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -482,11 +493,11 @@ export default function IntakeDePlanos() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <Label>Tipo</Label>
                   <Select value={tipo} onValueChange={setTipo}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecciona" />
                     </SelectTrigger>
                     <SelectContent>
@@ -501,7 +512,7 @@ export default function IntakeDePlanos() {
                 <div>
                   <Label>Material</Label>
                   <Select value={material} onValueChange={setMaterial}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecciona" />
                     </SelectTrigger>
                     <SelectContent>
@@ -516,7 +527,7 @@ export default function IntakeDePlanos() {
                 <div>
                   <Label>Categoría</Label>
                   <Select value={categoria} onValueChange={setCategoria}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="A / B / C" />
                     </SelectTrigger>
                     <SelectContent>
@@ -527,6 +538,31 @@ export default function IntakeDePlanos() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label>Cantidad</Label>
+                  <Input
+                    className="w-full"
+                    type="number"
+                    id="cantidad"
+                    placeholder="Numero"
+                    // Convertimos 'cantidad' a String para el input. Un string vacío para 'undefined'.
+                    value={cantidad === undefined ? "" : String(cantidad)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Si el valor está vacío, guardamos 'undefined'
+                      if (value === "") {
+                        setCantidad(undefined);
+                      } else {
+                        // Si hay un valor, lo convertimos a un número.
+                        const numValue = parseInt(value, 10);
+                        // Opcional: Asegurarse de que sea un número válido antes de establecerlo
+                        if (!isNaN(numValue)) {
+                          setCantidad(numValue);
+                        }
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
@@ -658,9 +694,20 @@ export default function IntakeDePlanos() {
                 <Button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={!noProyecto || !noPlano || !noOperacion}
+                  disabled={
+                    !noProyecto || !noPlano || !noOperacion || isSubmitting
+                  }
                 >
-                  <Printer className="h-4 w-4 mr-1" /> Imprimir hoja
+                  {isSubmitting ? ( // 👈 Mostrar Spinner si está cargando
+                    <>
+                      <Spinner className="h-4 w-4 mr-1" /> Processing
+                    </>
+                  ) : (
+                    // 👈 Mostrar icono normal si NO está cargando
+                    <>
+                      <Printer className="h-4 w-4 mr-1" /> Imprimir hoja
+                    </>
+                  )}
                 </Button>
               </div>
             </CardFooter>
@@ -701,6 +748,7 @@ export default function IntakeDePlanos() {
                       tipo={tipo}
                       material={material}
                       categoria={categoria}
+                      cantidad={cantidad}
                       procesos={payloadQR.procesos}
                       totalMin={totalMin}
                       observaciones={observaciones}
@@ -745,6 +793,7 @@ function HojaImpresion({
   tipo,
   material,
   categoria,
+  cantidad,
   procesos,
   totalMin,
   observaciones,
@@ -755,6 +804,7 @@ function HojaImpresion({
   tipo?: string;
   material?: string;
   categoria?: string;
+  cantidad?: number;
   procesos: { key: number; label: string; min: number }[];
   totalMin: number;
   observaciones: string;
@@ -789,6 +839,9 @@ function HojaImpresion({
             </div>
             <div>
               <span className="font-medium">Categoría:</span> {categoria || "—"}
+            </div>
+            <div>
+              <span className="font-medium">Cantidad:</span> {cantidad || "—"}
             </div>
           </div>
         </div>
