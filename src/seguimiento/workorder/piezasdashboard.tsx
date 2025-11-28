@@ -35,7 +35,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 /* ----------------- Tipos ----------------- */
-type Estado = "done" | "in_progress" | "pending" | "scrap";
+type Estado = "done" | "in_progress" | "pending" | "scrap" | "paused";
 type Paso = { key: string; label: string; minutos: number; estado: Estado };
 
 type Pieza = {
@@ -87,6 +87,7 @@ function computeStats(p: Pieza) {
     (x) => x.estado === "in_progress"
   ).length;
   const scrapCount = p.procesos.filter((x) => x.estado === "scrap").length;
+  const pausedCount = p.procesos.filter((x) => x.estado === "paused").length;
   // ---------------------------------------------
   const total = p.procesos.length;
 
@@ -102,11 +103,13 @@ function computeStats(p: Pieza) {
 
   let estado: Estado = "pending";
 
-  // 1. PRIORIDAD MÁXIMA: Si hay al menos un proceso en SCRAP, la pieza está SCRAP
+  // 1. PRIORIDAD MÁXIMA: SCRAP
   if (scrapCount > 0) estado = "scrap";
-  // 2. Si no hay SCRAP, chequeamos si está en progreso
+  // 2. PRIORIDAD MEDIA-ALTA: PAUSED
+  else if (pausedCount > 0) estado = "paused"; // 👈 Nueva condición
+  // 3. PRIORIDAD MEDIA: IN_PROGRESS
   else if (inProgressCount > 0) estado = "in_progress";
-  // 3. Si no hay SCRAP ni en progreso, chequeamos si está completo
+  // 4. PRIORIDAD BAJA: DONE (solo si todos los pasos están en done)
   else if (doneCount === total) estado = "done";
 
   // En cualquier otro caso, permanece como "pending"
@@ -118,9 +121,13 @@ function estadoBadge(estado: Estado) {
   if (estado === "done") return <Badge>Completado</Badge>;
   if (estado === "in_progress")
     return <Badge variant="secondary">En proceso</Badge>;
-  // --- NUEVA LÍNEA: Mostrar SCRAP con estilo de error ---
+  if (estado === "paused")
+    return (
+      <Badge className="bg-orange-500 hover:bg-orange-600 text-white">
+        Pausada
+      </Badge>
+    );
   if (estado === "scrap") return <Badge variant="destructive">Rechazada</Badge>;
-  // ------------------------------------------------------
   return <Badge variant="outline">Pendiente</Badge>;
 }
 
@@ -389,6 +396,7 @@ export default function PiezasDashboard() {
                 <SelectItem value="in_progress">En proceso</SelectItem>
                 <SelectItem value="done">Completado</SelectItem>
                 <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="paused">Pausada</SelectItem>
               </SelectContent>
             </Select>
           </div>
