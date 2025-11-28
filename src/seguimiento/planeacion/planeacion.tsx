@@ -139,7 +139,7 @@ export default function IntakeDePlanos() {
   const [tipo, setTipo] = useState<string | undefined>(undefined);
   const [material, setMaterial] = useState<string | undefined>(undefined);
   const [categoria, setCategoria] = useState<string | undefined>(undefined);
-  const [cantidad, setCantidad] = useState<number | undefined>(undefined);
+  const [cantidad, setCantidad] = useState<number | undefined>(1);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [observaciones, setObservaciones] = useState("");
 
@@ -184,7 +184,7 @@ export default function IntakeDePlanos() {
       tipo: tipo || null,
       material: material || null,
       categoria: categoria || null,
-      cantidad: cantidad || null,
+      cantidad: cantidad ?? 1,
       procesos: activos,
       totalMin,
       ts: Date.now(),
@@ -269,7 +269,7 @@ export default function IntakeDePlanos() {
     setTipo(undefined);
     setMaterial(undefined);
     setCategoria(undefined);
-    setCantidad(undefined);
+    setCantidad(1);
     setArchivo(null);
     setObservaciones("");
     setNoOperacion("");
@@ -311,7 +311,7 @@ export default function IntakeDePlanos() {
       tipo: tipo,
       material: material,
       categoria: categoria,
-      cantidad: cantidad,
+      cantidad: cantidad ?? 1,
       observaciones: observaciones,
 
       operacion_data: operacionData,

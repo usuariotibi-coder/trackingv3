@@ -275,7 +275,7 @@ export default function PiezaDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Cantidad</span>
               <span className="font-medium">
-                {operacion.workorder.cantidad}
+                {operacion.workorder.cantidad ?? "—"}
               </span>
             </div>
 
