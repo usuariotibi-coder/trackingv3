@@ -38,12 +38,7 @@ import { toast } from "sonner";
 type Area = { id: number; nombre: string };
 type Proceso = { id: number; nombre: string };
 
-const MOCK_AREAS: Area[] = [
-  { id: 1, nombre: "Planeación" },
-  { id: 2, nombre: "Manufactura" },
-  { id: 3, nombre: "Calidad" },
-  { id: 4, nombre: "Almacen" },
-];
+const MOCK_AREAS: Area[] = [{ id: 2, nombre: "Manufactura" }];
 
 const MOCK_PROCESOS: Proceso[] = [
   { id: 1, nombre: "Corte" },
@@ -54,7 +49,9 @@ const MOCK_PROCESOS: Proceso[] = [
   { id: 6, nombre: "Pintura" },
   { id: 7, nombre: "Inspección / Limpieza / Acabados" },
   { id: 8, nombre: "Calidad" },
+  { id: 9, nombre: "Enviado a Externos" },
   { id: 10, nombre: "Almacen" },
+  { id: 11, nombre: "Planeación" },
 ];
 
 export default function NewEntryPage() {
