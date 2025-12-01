@@ -504,13 +504,6 @@ export default function ScanStation() {
     setTimeout(() => woInputRef.current?.focus(), 0);
   };
 
-  function handleChangeOperator() {
-    setLocked(false);
-    setWorkOrder(""); // Limpiar WO al cambiar operador
-    setMaquinaSeleccionadaId(undefined); // Limpiar máquina
-    setTimeout(() => empInputRef.current?.focus(), 0);
-  }
-
   function addScan(status: ScanStatus, note?: string) {
     const item: ScanItem = {
       id: uuid(),
@@ -853,37 +846,19 @@ export default function ScanStation() {
               </div>
 
               <div className="flex gap-2 pt-1">
-                {!locked ? (
-                  <Button
-                    type="button"
-                    onClick={handleLockOperator}
-                    disabled={
-                      !workOrder ||
-                      loadingP ||
-                      loadingI ||
-                      loadingF ||
-                      isMaquinaRequiredAndMissing
-                    }
-                  >
-                    Continuar
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      type="submit"
-                      disabled={!workOrder || loadingP || loadingI || loadingF}
-                    >
-                      {loadingI || loadingF ? "Procesando..." : "Registrar"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleChangeOperator}
-                    >
-                      Cambiar operador
-                    </Button>
-                  </>
-                )}
+                <Button
+                  type={locked ? "submit" : "button"}
+                  onClick={locked ? undefined : handleLockOperator}
+                  disabled={
+                    !workOrder ||
+                    loadingP ||
+                    loadingI ||
+                    loadingF ||
+                    isMaquinaRequiredAndMissing
+                  }
+                >
+                  {loadingI || loadingF ? "Procesando..." : "Continuar"}
+                </Button>
               </div>
             </form>
           </CardContent>
