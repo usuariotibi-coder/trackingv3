@@ -1,5 +1,5 @@
 import "./App.css";
-import { Routes, Route, HashRouter } from "react-router-dom";
+import { Routes, Route, BrowserRouter } from "react-router-dom";
 import Home from "./home";
 import EstacionMaquinado from "./seguimiento/estaciones/maquinadocnc/maquinadocns";
 import IntakeDePlanos from "./seguimiento/planeacion/planeacion";
@@ -12,10 +12,11 @@ import MaquinasDashboard from "./seguimiento/dashboard/machines";
 import ImpactoPage from "./seguimiento/principal";
 import NewEntryPage from "./seguimiento/newentries";
 import LoginPage from "./seguimiento/login";
+import LavorPage from "./seguimiento/dashboard/lavor";
 
 function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AppNav />
       <Routes>
         <Route path="/" element={<Home />} />
@@ -28,10 +29,11 @@ function App() {
         <Route path="/machines" element={<MaquinasDashboard />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/newentries" element={<NewEntryPage />} />
+        <Route path="/lavor" element={<LavorPage />} />
         <Route path="*" element={<div className="p-6">404</div>} />
       </Routes>
       <Toaster position="bottom-right" richColors />
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 

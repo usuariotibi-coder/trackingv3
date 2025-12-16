@@ -53,3 +53,31 @@ query ObtenerProcesoEspecifico($operacionId: ID!, $procesoId: ID!) {
       }
     }
   `;
+
+
+  ---------------------------------------
+
+  {
+  usuario(numero: "E0592") {
+    id
+    nombre
+    procesosAsignados {
+      proceso {
+        nombre
+      }
+      tiempoEstimado
+      horaInicio
+      horaFin
+      tiempoRealCalculado
+      operacion {
+        operacion
+        proyecto {
+          proyecto
+        }
+      }
+      maquina {
+        nombre
+      }
+    }
+  }
+}
