@@ -123,11 +123,11 @@ export default function PiezaDashboard() {
 
   const operacion = data?.operacion;
 
-  const showData = () => {
-    console.log(loading);
-    console.log(error);
-    console.log(data);
-  };
+  // const showData = () => {
+  //   console.log(loading);
+  //   console.log(error);
+  //   console.log(data);
+  // };
 
   const displayProcesos: DisplayPaso[] = useMemo(() => {
     if (!operacion || !operacion.procesos) return [];
@@ -237,7 +237,6 @@ export default function PiezaDashboard() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-2xl font-semibold tracking-tight"
-          onClick={showData}
         >
           Seguimiento de pieza
         </motion.h1>

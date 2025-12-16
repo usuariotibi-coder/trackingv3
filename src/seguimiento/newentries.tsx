@@ -151,7 +151,7 @@ function CreateUserCard() {
 
   const handleSubmitUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Datos de usuario a enviar:", userData);
+    //console.log("Datos de usuario a enviar:", userData);
 
     try {
       await createUser({
@@ -465,7 +465,7 @@ function CreateProjectCard() {
 
   const handleSubmitProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Datos de proyecto a enviar:", projectData);
+    //console.log("Datos de proyecto a enviar:", projectData);
 
     try {
       await createProject({
@@ -721,7 +721,7 @@ function CreateMachineCard() {
 
   const handleSubmitMachine = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Datos de máquina a enviar:", machineData);
+    //console.log("Datos de máquina a enviar:", machineData);
 
     try {
       await createMachine({

@@ -422,10 +422,10 @@ export default function IntakeDePlanos() {
     window.print();
   };
 
-  const showData = () => {
-    console.log("Payload QR:", payloadQR);
-    console.log("Procesos:", procesos);
-  };
+  // const showData = () => {
+  //   console.log("Payload QR:", payloadQR);
+  //   console.log("Procesos:", procesos);
+  // };
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -683,7 +683,7 @@ export default function IntakeDePlanos() {
               </div>
             </CardContent>
             <CardFooter className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground" onClick={showData}>
+              <div className="text-xs text-muted-foreground">
                 Sugerencia: no todos los planos requieren todos los procesos.
                 Activa solo lo necesario y asigna el tiempo.
               </div>

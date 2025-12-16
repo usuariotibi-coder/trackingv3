@@ -255,7 +255,7 @@ export default function ScanStation() {
     fetchPolicy: "cache-and-network",
   });
 
-  console.log("proceso id:", procesoId);
+  //console.log("proceso id:", procesoId);
 
   const maquinas = dataM?.maquinaPorProceso;
 
@@ -519,14 +519,14 @@ export default function ScanStation() {
       note,
     };
 
-    console.log("Registro de Escaneo:", {
-      employeeId: employeeId,
-      workOrder: workOrder,
-      status: status,
-      note: note,
-      timestamp: item.ts,
-      maquinaId: maquinaSeleccionadaId, // loggeamos la máquina
-    });
+    // console.log("Registro de Escaneo:", {
+    //   employeeId: employeeId,
+    //   workOrder: workOrder,
+    //   status: status,
+    //   note: note,
+    //   timestamp: item.ts,
+    //   maquinaId: maquinaSeleccionadaId, // loggeamos la máquina
+    // });
 
     setRecent((prev) => [item, ...prev].slice(0, 200));
     setWorkOrder("");
@@ -739,10 +739,10 @@ export default function ScanStation() {
     maquinas.length > 0 &&
     !maquinaSeleccionadaId;
 
-  function showData() {
-    console.log(employeeId);
-    console.log(workOrder);
-  }
+  // function showData() {
+  //   console.log(employeeId);
+  //   console.log(workOrder);
+  // }
 
   // Renderizado
   return (
@@ -753,7 +753,6 @@ export default function ScanStation() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-2xl font-semibold tracking-tight"
-          onClick={showData}
         >
           Estación de Escaneo: {dataE?.usuario?.proceso?.nombre}
         </motion.h1>
