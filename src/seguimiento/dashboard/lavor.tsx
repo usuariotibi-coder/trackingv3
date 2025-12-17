@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import { motion } from "framer-motion";
-//import { format, startOfHour, addHours, isWithinInterval } from "date-fns";
+//import { motion } from "framer-motion";
 import { format, startOfHour, addHours } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -12,7 +11,7 @@ import {
   AreaChart,
   Area,
   XAxis,
-  YAxis,
+  //YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
@@ -49,15 +48,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+//import { Separator } from "@/components/ui/separator";
 import {
-  User,
+  //User,
   Calendar as CalendarIcon,
-  //AlertTriangle,
   Activity,
-  Timer,
+  //Timer,
   Hourglass,
-  // RefreshCcw,
+  Download, // Icono para exportar
 } from "lucide-react";
 
 /* ============================
@@ -141,10 +139,6 @@ const GET_USUARIO = gql`
   }
 `;
 
-/* ============================
-   Utilidades de Tiempo
-================================ */
-
 function diffMinutes(a: Date, b: Date): number {
   return Math.max(0, (b.getTime() - a.getTime()) / 60000);
 }
@@ -153,17 +147,8 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ============================
-   Componente Principal
-================================ */
-
 export default function LavorPage() {
-  const {
-    data: usersData,
-    //loading: usersLoading,
-    //error: usersError,
-  } = useQuery<GetUsuariosData>(GET_USUARIOS);
-
+  const { data: usersData } = useQuery<GetUsuariosData>(GET_USUARIOS);
   const [currentSelectedNumero, setCurrentSelectedNumero] =
     useState<string>("");
   const [projectFilter, setProjectFilter] = useState<string>("ALL_PROJECTS");
@@ -184,11 +169,7 @@ export default function LavorPage() {
 
   const selectedEmployeeNumero = currentSelectedNumero || defaultNumero;
 
-  const {
-    data: userData,
-    //loading: userLoading,
-    //error: userError,
-  } = useQuery<GetUserData>(GET_USUARIO, {
+  const { data: userData } = useQuery<GetUserData>(GET_USUARIO, {
     variables: {
       numero: selectedEmployeeNumero,
       fecha: date ? format(date, "yyyy-MM-dd") : null,
@@ -200,15 +181,14 @@ export default function LavorPage() {
     | ProcesoAsignado[]
     | undefined;
 
-  // 1. Construir Timeline y Métricas por Hora
   const timelineData = useMemo(() => {
     if (!allProcesos || allProcesos.length === 0)
-      return { intervals: [], totalWorkMin: 0, chartData: [] };
+      return { intervals: [], totalWorkMin: 0, totalEstMin: 0, chartData: [] };
 
     const intervals: Interval[] = [];
     let totalWorkMin = 0;
+    let totalEstMin = 0;
 
-    // Inicializar cubetas de horas (6 AM a 10 PM)
     const hourBuckets: Record<string, number> = {};
     for (let i = 6; i <= 22; i++) {
       hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
@@ -235,18 +215,15 @@ export default function LavorPage() {
             tiempoEstimado: proc.tiempoEstimado ?? 0,
           });
           totalWorkMin += minutes;
+          totalEstMin += proc.tiempoEstimado ?? 0;
 
-          // Repartir minutos en las cubetas de horas
           let cursor = new Date(start);
           while (cursor < end) {
             const hourKey = format(cursor, "HH:00");
             const nextHour = addHours(startOfHour(cursor), 1);
             const limit = end < nextHour ? end : nextHour;
-            const minsInThisHour = diffMinutes(cursor, limit);
-
-            if (hourBuckets[hourKey] !== undefined) {
-              hourBuckets[hourKey] += minsInThisHour;
-            }
+            if (hourBuckets[hourKey] !== undefined)
+              hourBuckets[hourKey] += diffMinutes(cursor, limit);
             cursor = nextHour;
           }
         }
@@ -256,11 +233,10 @@ export default function LavorPage() {
       hour,
       minutos: Math.round(mins),
     }));
-
     intervals.sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
     );
-    return { intervals, totalWorkMin, chartData };
+    return { intervals, totalWorkMin, totalEstMin, chartData };
   }, [allProcesos]);
 
   const filteredIntervals = useMemo(() => {
@@ -270,36 +246,84 @@ export default function LavorPage() {
     );
   }, [timelineData.intervals, projectFilter]);
 
-  // UI rendering ... (omitido por brevedad, se mantiene igual al anterior hasta la sección de cards)
+  // Función de Exportación a CSV
+  const exportToCSV = () => {
+    if (filteredIntervals.length === 0) return;
+    const headers = [
+      "Inicio",
+      "Fin",
+      "Estimado (min)",
+      "Real (min)",
+      "Eficiencia (%)",
+      "Proceso",
+      "Maquina",
+      "Proyecto",
+    ];
+    const rows = filteredIntervals.map((itv) => {
+      const ef =
+        itv.minutes > 0
+          ? Math.round((itv.tiempoEstimado / itv.minutes) * 100)
+          : 0;
+      return [
+        formatTime(new Date(itv.start)),
+        itv.end === new Date().toISOString()
+          ? "En curso"
+          : formatTime(new Date(itv.end)),
+        itv.tiempoEstimado,
+        itv.minutes,
+        `${ef}%`,
+        `"${itv.operacion}"`,
+        `"${itv.maquinaNombre}"`,
+        `"${itv.proyecto}"`,
+      ];
+    });
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((r) => r.join(",")),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `Reporte_${selectedEmployeeNumero}_${format(
+        date || new Date(),
+        "yyyy-MM-dd"
+      )}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const eficienciaGlobal =
+    timelineData.totalWorkMin > 0
+      ? Math.round((timelineData.totalEstMin / timelineData.totalWorkMin) * 100)
+      : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-100 via-white to-neutral-200 px-6 py-10 text-neutral-900 dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:text-neutral-100">
+    <div className="min-h-screen bg-neutral-50 dark:bg-black px-6 py-10">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <motion.h1
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-bold tracking-tight sm:text-4xl"
-            >
+            <h1 className="text-3xl font-bold tracking-tight">
               Seguimiento por Operador
-            </motion.h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Panel de métricas y tiempos reales.
+            </h1>
+            <p className="text-sm text-neutral-500">
+              Métricas de desempeño real en planta.
             </p>
           </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex gap-2">
             <div className="space-y-1">
-              <Label className="text-xs flex items-center gap-1">
-                <User className="h-3 w-3" /> Operador
-              </Label>
+              <Label className="text-xs">Operador</Label>
               <Select
                 value={selectedEmployeeNumero}
                 onValueChange={setCurrentSelectedNumero}
               >
                 <SelectTrigger className="w-52">
-                  <SelectValue placeholder="Seleccione Operador" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((emp) => (
@@ -310,46 +334,22 @@ export default function LavorPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1">
-              <Label className="text-xs flex items-center gap-1">
-                <CalendarIcon className="h-3 w-3" /> Fecha
-              </Label>
+              <Label className="text-xs">Fecha</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-52 justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
+                  <Button variant="outline" className="w-52 justify-start">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? (
-                      format(date, "PPP", { locale: es })
-                    ) : (
-                      <span>Seleccionar fecha</span>
-                    )}
+                    {date ? format(date, "PPP", { locale: es }) : "Fecha"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
+                <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
                     selected={date}
                     onSelect={setDate}
-                    initialFocus
                     locale={es}
                   />
-                  <div className="border-t p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => setDate(new Date())}
-                    >
-                      Ir a Hoy
-                    </Button>
-                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -359,247 +359,162 @@ export default function LavorPage() {
         <section className="grid gap-4 md:grid-cols-[2fr,1.5fr]">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="h-4 w-4" /> Resumen del Día
+              <CardTitle className="text-base flex gap-2">
+                <Activity className="h-4 w-4" /> Resumen Diario
               </CardTitle>
-              <CardDescription>
-                {selectedEmployeeNumero} ·{" "}
-                {date ? format(date, "dd MMM yyyy", { locale: es }) : ""}
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <SummaryChip
-                  label="Min. Trabajados"
+                  label="Trabajado"
                   value={`${timelineData.totalWorkMin}m`}
-                  detail={`${(timelineData.totalWorkMin / 60).toFixed(1)}h`}
                   highlight
                 />
-                <SummaryChip label="Eficiencia" value="92%" warn={false} />
-                <SummaryChip label="Gaps" value="15m" muted />
+                <SummaryChip
+                  label="Eficiencia"
+                  value={`${eficienciaGlobal}%`}
+                  warn={eficienciaGlobal < 85}
+                />
+                <SummaryChip
+                  label="Estimado"
+                  value={`${timelineData.totalEstMin}m`}
+                  muted
+                />
                 <SummaryChip
                   label="Procesos"
                   value={timelineData.intervals.length.toString()}
                 />
               </div>
-              <Separator />
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span>Utilización (Meta: 540 min)</span>
-                  <span className="font-medium">
-                    {Math.round((timelineData.totalWorkMin / 540) * 100)}%
-                  </span>
-                </div>
-                <Progress value={(timelineData.totalWorkMin / 540) * 100} />
-              </div>
+              <Progress
+                value={(timelineData.totalWorkMin / 540) * 100}
+                className="h-2"
+              />
             </CardContent>
           </Card>
 
-          {/* Card de Desempeño con Gráfica */}
           <Card className="overflow-hidden">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Hourglass className="h-4 w-4 text-blue-500" /> Actividad por
-                Hora
+              <CardTitle className="text-base flex gap-2">
+                <Hourglass className="h-4 w-4 text-blue-500" /> Distribución
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[180px] pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timelineData.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="hour" fontSize={10} interval={2} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="minutos"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.1}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </section>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base">
+                Detalle de Operaciones
               </CardTitle>
               <CardDescription>
-                Minutos de trabajo registrados por bloque horario.
+                Historial de procesos filtrados.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0 pt-2">
-              <div className="h-[180px] w-full px-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={timelineData.chartData}>
-                    <defs>
-                      <linearGradient id="colorMin" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#3b82f6"
-                          stopOpacity={0.3}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#3b82f6"
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="#f0f0f0"
-                    />
-                    <XAxis
-                      dataKey="hour"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={2}
-                    />
-                    <YAxis hide domain={[0, 60]} />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: "12px",
-                        borderRadius: "8px",
-                        border: "none",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                      }}
-                      formatter={(value) => [`${value} min`, "Actividad"]}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="minutos"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorMin)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="p-4 pt-0 text-[10px] text-neutral-500 flex justify-between items-center">
-                <span className="flex items-center gap-1">
-                  <Timer className="h-3 w-3" /> Máximo: 60 min/hora
-                </span>
-                <span>Turno 06:00 - 22:00</span>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Sección de Tabla Detallada */}
-        <section>
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-base">
-                  Detalle de Operaciones
-                </CardTitle>
-                <CardDescription>
-                  Procesos registrados en la fecha seleccionada.
-                </CardDescription>
-              </div>
+            </div>
+            <div className="flex gap-2">
               <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Proyecto" />
+                <SelectTrigger className="w-40">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL_PROJECTS">
-                    Todos los proyectos
-                  </SelectItem>
-                  {/* Se asume que uniqueProjects se extrae de timelineData.intervals */}
+                  <SelectItem value="ALL_PROJECTS">Todos</SelectItem>
                   {Array.from(
                     new Set(timelineData.intervals.map((i) => i.proyecto))
-                  )
-                    .sort()
-                    .map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
+                  ).map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-center">Inicio</TableHead>
-                      <TableHead className="text-center">Fin</TableHead>
-                      <TableHead className="text-center">Estimado</TableHead>
-                      <TableHead className="text-center">Real</TableHead>
-                      <TableHead className="text-center">Proceso</TableHead>
-                      <TableHead className="text-center">Máquina</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredIntervals.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="py-10 text-center text-sm text-neutral-500"
-                        >
-                          Sin registros para esta selección.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredIntervals.map((itv, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-center font-mono text-xs">
-                            {formatTime(new Date(itv.start))}
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-xs">
-                            {itv.end === new Date().toISOString()
-                              ? "En curso"
-                              : formatTime(new Date(itv.end))}
-                          </TableCell>
-                          <TableCell className="text-center text-neutral-400 font-mono">
-                            {itv.tiempoEstimado}m
-                          </TableCell>
-                          <TableCell className="text-center font-mono font-bold">
-                            {itv.minutes}m
-                          </TableCell>
-                          <TableCell className="text-center text-sm font-medium">
-                            {itv.operacion}
-                          </TableCell>
-                          <TableCell className="text-center text-sm">
-                            {itv.maquinaNombre}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToCSV}
+                disabled={filteredIntervals.length === 0}
+                className="gap-2 cursor-pointer"
+              >
+                <Download className="h-4 w-4" /> Exportar CSV
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-center">Inicio</TableHead>
+                  <TableHead className="text-center">Fin</TableHead>
+                  <TableHead className="text-center">Estimado</TableHead>
+                  <TableHead className="text-center">Real</TableHead>
+                  <TableHead className="text-center">Proceso</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredIntervals.map((itv, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-center font-mono text-xs">
+                      {formatTime(new Date(itv.start))}
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs">
+                      {itv.end === new Date().toISOString()
+                        ? "En curso"
+                        : formatTime(new Date(itv.end))}
+                    </TableCell>
+                    <TableCell className="text-center text-neutral-400">
+                      {itv.tiempoEstimado}m
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-center font-bold",
+                        itv.minutes > itv.tiempoEstimado
+                          ? "text-red-500"
+                          : "text-emerald-500"
+                      )}
+                    >
+                      {itv.minutes}m
+                    </TableCell>
+                    <TableCell className="text-center text-sm">
+                      {itv.operacion}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
-// Subcomponentes auxiliares (SummaryChip, LoadingState, ErrorState) ...
-function SummaryChip({ label, value, detail, muted, warn, highlight }: any) {
-  let bg =
-    "bg-neutral-50 border-neutral-200 text-neutral-800 dark:bg-neutral-900";
-  if (muted)
-    bg =
-      "bg-neutral-100/70 border-neutral-200 text-neutral-700 dark:bg-neutral-900/70";
-  if (warn) bg = "bg-amber-50 border-amber-200 text-amber-800";
-  if (highlight) bg = "bg-blue-50 border-blue-200 text-blue-800";
-
+function SummaryChip({ label, value, highlight, warn, muted }: any) {
   return (
-    <div className={`rounded-xl border px-3 py-2 ${bg}`}>
-      <div className="text-[10px] uppercase tracking-wider opacity-70 font-bold">
-        {label}
-      </div>
-      <div className="text-sm font-semibold">{value}</div>
-      {detail && <div className="text-[10px] opacity-60">{detail}</div>}
+    <div
+      className={cn(
+        "rounded-xl border p-3",
+        highlight && "bg-blue-50 border-blue-200",
+        warn && "bg-red-50 border-red-200",
+        muted && "bg-neutral-50"
+      )}
+    >
+      <div className="text-[10px] uppercase font-bold opacity-70">{label}</div>
+      <div className="text-lg font-bold">{value}</div>
     </div>
   );
 }
-
-// function LoadingState({ text }: { text: string }) {
-//   return (
-//     <div className="flex h-screen items-center justify-center">
-//       <div className="flex flex-col items-center space-y-4">
-//         <RefreshCcw className="h-8 w-8 animate-spin text-blue-500" />
-//         <p className="text-neutral-500 font-medium">{text}</p>
-//       </div>
-//     </div>
-//   );
-// }
-
-// function ErrorState({ message }: { message: string }) {
-//   return (
-//     <div className="flex h-screen items-center justify-center">
-//       <div className="flex flex-col items-center space-y-3 p-6 border border-red-200 rounded-xl bg-red-50 text-red-800">
-//         <AlertTriangle className="h-8 w-8" />
-//         <p className="font-bold">Error de Datos</p>
-//         <p className="text-sm max-w-xs text-center">{message}</p>
-//       </div>
-//     </div>
-//   );
-// }

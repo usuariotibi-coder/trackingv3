@@ -1,70 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-
-export default function ImpactoPage() {
-  return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-neutral-100 via-white to-neutral-200 px-6 py-12 text-neutral-900 dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:text-neutral-100 lg:px-12">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Seguimiento en tiempo real
-            </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Cada proceso se muestra en su flujo actual
-            </p>
-          </div>
-        </header>
-
-        {/* ===== Flujo animado ===== */}
-        <section className="relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
-          <FlowImpactChart />
-        </section>
-
-        {/* ===== Tarjetas KPI resumidas ===== */}
-        {/* <div className="grid gap-2 text-xs text-neutral-600 dark:text-neutral-400 sm:grid-cols-3">
-          <div className="rounded-lg border border-neutral-200/70 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
-            <div className="text-[11px]">Rendimiento actual</div>
-            <div className="text-lg font-semibold">86%</div>
-          </div>
-          <div className="rounded-lg border border-neutral-200/70 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
-            <div className="text-[11px]">Retraso máximo en</div>
-            <div className="text-lg font-semibold">+28% de CNC</div>
-          </div>
-          <div className="rounded-lg border border-neutral-200/70 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
-            <div className="text-[11px]">Piezas/Hora</div>
-            <div className="text-lg font-semibold">17 piezas</div>
-          </div>
-        </div> */}
-
-        {/* ===== NUEVO: Avance por proyecto (barras horizontales) ===== */}
-        <section className="rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
-          <h2 className="mb-4 text-xl font-semibold tracking-tight">
-            Avance por proyecto
-          </h2>
-          <ProjectProgress
-            data={[
-              { proyecto: "OP-3272 • Jig Lateral", maquinadas: 46, total: 60 },
-              { proyecto: "OP-3281 • Gripper XYZ", maquinadas: 22, total: 40 },
-              {
-                proyecto: "OP-3290 • Mesa Indexada",
-                maquinadas: 73,
-                total: 80,
-              },
-              { proyecto: "OP-3298 • End Effector", maquinadas: 9, total: 30 },
-              {
-                proyecto: "OP-3301 • Transportador",
-                maquinadas: 55,
-                total: 100,
-              },
-            ]}
-          />
-        </section>
-      </div>
-    </div>
-  );
-}
+import { Timer } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
 /* ---------- Gráfico de flujo animado (SVG puro, sin libs) ---------- */
 function FlowImpactChart() {
@@ -213,27 +158,78 @@ function FlowImpactChart() {
   );
 }
 
-/* ---------- Barras horizontales: avance por proyecto ---------- */
-type Proyecto = { proyecto: string; maquinadas: number; total: number };
+/* ---------- Utilidades de Tiempo (Inspiradas en machines.tsx) ---------- */
 
-// Tipos de resultados del query (se mantienen)
+// Calcula minutos transcurridos desde una fecha ISO
+function minsSince(ts?: string | null) {
+  if (!ts) return 0;
+  const diffMs = Date.now() - new Date(ts).getTime();
+  return Math.max(0, Math.floor(diffMs / 60000));
+}
+
+// Formatea minutos a un string legible (ej: 1h 15m)
+function fmtElapsed(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+/* ---------- Tipos de Datos ---------- */
+
 type OperacionesQueryResult = {
   operaciones: Array<{
     proyecto: {
       id: string;
-      proyecto: string; // Ejemplo: "OP-3272 • Jig Lateral"
+      proyecto: string;
     };
     procesos: Array<{
-      estado: string; // Ejemplo: "done", "in_progress", "pending"
-      proceso: {
-        nombre: string;
-      };
+      estado: string;
+      proceso: { nombre: string };
+      horaInicio?: string | null;
+      tiempoEstimado?: number | null;
     }>;
   }>;
 };
 
-function ProjectProgress({ data: initialData }: { data: Proyecto[] }) {
-  // ... (Query GET_DATOS y useQuery se mantienen igual)
+export default function ImpactoPage() {
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-br from-neutral-100 via-white to-neutral-200 px-6 py-12 text-neutral-900 dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:text-neutral-100 lg:px-12">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Seguimiento en tiempo real
+          </h1>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Cada proceso se muestra en su flujo actual
+          </p>
+        </header>
+
+        {/* ===== Flujo animado ===== */}
+        <section className="relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
+          <FlowImpactChart />
+        </section>
+
+        <section className="rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-lg backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
+          <h2 className="mb-4 text-xl font-semibold tracking-tight">
+            Avance por proyecto
+          </h2>
+          <ProjectProgress />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ProjectProgress() {
+  const [tick, setTick] = useState(0);
+
+  // Efecto para forzar re-renderizado cada minuto y actualizar los cronómetros
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const GET_DATOS = gql`
     query {
       operaciones {
@@ -246,174 +242,169 @@ function ProjectProgress({ data: initialData }: { data: Proyecto[] }) {
           proceso {
             nombre
           }
+          horaInicio
+          tiempoEstimado
         }
       }
     }
   `;
 
   const {
-    loading: loadingOpP,
-    error: errorOpP,
+    loading,
+    error,
     data: dataOpP,
   } = useQuery<OperacionesQueryResult>(GET_DATOS);
 
-  // === CÓDIGO CLAVE: Mapeo de los datos del query ===
   const rows = useMemo(() => {
-    if (!dataOpP?.operaciones) {
-      // Lógica de fallback para initialData (se mantiene)
-      return initialData.map((d) => {
-        const pct =
-          d.total > 0
-            ? Math.min(100, Math.round((d.maquinadas / d.total) * 100))
-            : 0;
-        const color =
+    if (!dataOpP?.operaciones) return [];
+
+    const proyectosMap = dataOpP.operaciones.reduce((acc, op) => {
+      const projectId = op.proyecto.id;
+      if (!acc[projectId]) {
+        acc[projectId] = {
+          nombre: op.proyecto.proyecto,
+          total: 0,
+          weighted: 0,
+          procesosRaw: op.procesos, // Guardamos la lista de procesos para el acordeón
+        };
+      }
+
+      const totalProcesosOp = op.procesos.length;
+      const done = op.procesos.filter((x) => x.estado === "done").length;
+      const inProgress = op.procesos.filter(
+        (x) => x.estado === "in_progress"
+      ).length;
+
+      acc[projectId].total += totalProcesosOp;
+      acc[projectId].weighted += done + inProgress * 0.5; // Ponderación: Terminado=1, En curso=0.5
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.entries(proyectosMap).map(([id, stats]) => {
+      const pct =
+        stats.total > 0
+          ? Math.min(100, Math.round((stats.weighted / stats.total) * 100))
+          : 0;
+      return {
+        id,
+        proyecto: stats.nombre,
+        maquinadas: Math.round(stats.weighted),
+        total: stats.total,
+        pct,
+        procesos: stats.procesosRaw,
+        color:
           pct >= 80
             ? "bg-emerald-500"
             : pct >= 50
             ? "bg-amber-500"
-            : "bg-rose-500";
-        return { ...d, pct, color };
-      });
-    }
-
-    // 1. Agrupar operaciones por ID de proyecto, acumulando conteos de procesos
-    const proyectosMap = dataOpP.operaciones.reduce(
-      (acc, op) => {
-        const projectId = op.proyecto.id;
-        const projectName = op.proyecto.proyecto;
-
-        if (!acc[projectId]) {
-          acc[projectId] = {
-            nombre: projectName,
-            totalProcesos: 0,
-            completedProcesosWeighted: 0, // Suma ponderada de procesos
-          };
-        }
-
-        // Obtener conteos de procesos para la operación actual
-        const totalProcesosOp = op.procesos.length;
-        const doneCount = op.procesos.filter((x) => x.estado === "done").length;
-        const inProgressCount = op.procesos.filter(
-          (x) => x.estado === "in_progress"
-        ).length;
-
-        // Fórmula de avance ponderado: Done + (In_Progress * 0.5)
-        const completedProcesosWeightedOp = doneCount + inProgressCount * 0.5;
-
-        // Acumular los totales en el mapa del proyecto
-        acc[projectId].totalProcesos += totalProcesosOp;
-        acc[projectId].completedProcesosWeighted += completedProcesosWeightedOp;
-
-        return acc;
-      },
-      {} as Record<
-        string,
-        {
-          nombre: string;
-          totalProcesos: number;
-          completedProcesosWeighted: number;
-        }
-      >
-    );
-
-    // 2. Convertir el mapa a un array de Proyecto[] calculando el porcentaje
-    return Object.entries(proyectosMap).map(([, stats]) => {
-      const maquinadas = Math.round(stats.completedProcesosWeighted); // Redondeamos para mostrar
-      const total = stats.totalProcesos;
-
-      const pct =
-        total > 0
-          ? Math.min(
-              100,
-              Math.round((stats.completedProcesosWeighted / total) * 100)
-            )
-          : 0;
-
-      // Lógica de color (se mantiene)
-      const color =
-        pct >= 80
-          ? "bg-emerald-500"
-          : pct >= 50
-          ? "bg-amber-500"
-          : "bg-rose-500";
-
-      return {
-        proyecto: stats.nombre,
-        maquinadas, // Ahora es el CONTEO PONDERADO (Done + 0.5*In_Progress)
-        total, // Ahora es el CONTEO TOTAL DE PROCESOS
-        pct,
-        color,
+            : "bg-rose-500",
       };
     });
-  }, [dataOpP, initialData]);
-  // === FIN CÓDIGO CLAVE ===
+  }, [dataOpP, tick]);
 
-  if (loadingOpP) {
-    return <p className="text-center py-4">Cargando avance de proyectos...</p>;
-  }
-
-  if (errorOpP) {
+  if (loading) return <p className="text-center py-4">Cargando avance...</p>;
+  if (error)
     return (
-      <p className="text-center py-4 text-rose-500">
-        Error al cargar los datos: {errorOpP.message}
+      <p className="text-center py-4 text-rose-500 italic">
+        Error: {error.message}
       </p>
     );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <p className="text-center py-4 text-neutral-500">
-        No hay proyectos para mostrar.
-      </p>
-    );
-  }
 
   return (
-    <div className="space-y-4">
+    <Accordion type="single" collapsible className="w-full space-y-4">
       {rows.map((r) => (
-        <div
-          key={r.proyecto}
-          className="rounded-xl border border-neutral-200/70 p-4 dark:border-neutral-800"
+        <AccordionItem
+          key={r.id}
+          value={r.id}
+          className="rounded-xl border border-neutral-200/70 px-4 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/40 overflow-hidden shadow-sm"
         >
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <div className="font-medium">{r.proyecto}</div>
-            <div className="tabular-nums text-neutral-500 dark:text-neutral-400">
-              {r.maquinadas}/{r.total} &nbsp;•&nbsp; {r.pct}%
+          <AccordionTrigger className="hover:no-underline py-4">
+            <div className="flex flex-col w-full pr-4 text-left">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-bold">{r.proyecto}</span>
+                <span className="tabular-nums text-neutral-500">
+                  {r.maquinadas}/{r.total} ({r.pct}%)
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/70">
+                <div
+                  className={cn("h-full transition-all duration-700", r.color)}
+                  style={{ width: `${r.pct}%` }}
+                />
+              </div>
             </div>
-          </div>
+          </AccordionTrigger>
 
-          {/* Barra */}
-          <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/70">
-            <div
-              className={`h-full ${r.color}`}
-              style={{
-                width: `${r.pct}%`,
-                transition: "width 800ms cubic-bezier(.22,1,.36,1)",
-                boxShadow: "0 0 12px rgba(0,0,0,0.08) inset",
-              }}
-              aria-valuenow={r.pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              role="progressbar"
-            />
-          </div>
-        </div>
+          <AccordionContent className="pb-4 pt-0">
+            <div className="grid gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
+              {/* ORDEN CRONOLÓGICO: Prioriza procesos iniciados ordenados por tiempo */}
+              {[...r.procesos]
+                .sort((a, b) => {
+                  if (!a.horaInicio) return 1;
+                  if (!b.horaInicio) return -1;
+                  return (
+                    new Date(a.horaInicio).getTime() -
+                    new Date(b.horaInicio).getTime()
+                  );
+                })
+                .map((p, idx) => {
+                  const elapsed = minsSince(p.horaInicio);
+                  const isRunning = p.estado === "in_progress";
+                  const overTime =
+                    isRunning && p.tiempoEstimado && elapsed > p.tiempoEstimado;
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between rounded-lg bg-white/60 dark:bg-neutral-800/40 p-3 text-xs border border-neutral-100 dark:border-neutral-700/50"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-100">
+                          {p.proceso.nombre}
+                        </span>
+                        {isRunning && p.horaInicio && (
+                          <span
+                            className={cn(
+                              "flex items-center gap-1 font-medium",
+                              overTime
+                                ? "text-rose-600 animate-pulse"
+                                : "text-neutral-500"
+                            )}
+                          >
+                            <Timer className="h-3 w-3" /> {fmtElapsed(elapsed)}{" "}
+                            transcurridos
+                            {p.tiempoEstimado && (
+                              <span className="opacity-70">
+                                / {p.tiempoEstimado}m obj.
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <Badge
+                        className={cn(
+                          "px-2 py-0 text-[10px] capitalize font-bold",
+                          p.estado === "done"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : isRunning
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-neutral-100 text-neutral-500"
+                        )}
+                        variant="outline"
+                      >
+                        {p.estado === "in_progress"
+                          ? "Activo"
+                          : p.estado === "done"
+                          ? "Terminado"
+                          : "Pendiente"}
+                      </Badge>
+                    </div>
+                  );
+                })}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       ))}
-      {/* Leyenda simple */}
-      <div className="flex flex-wrap gap-3 text-xs text-neutral-600 dark:text-neutral-400">
-        <LegendTag className="bg-emerald-500" label="≥ 80% (en rango)" />
-        <LegendTag className="bg-amber-500" label="50–79% (en seguimiento)" />
-        <LegendTag className="bg-rose-500" label="< 50% (crítico)" />
-      </div>
-    </div>
-  );
-}
-
-function LegendTag({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className={`inline-block h-3 w-3 rounded-full ${className}`} />
-      <span>{label}</span>
-    </span>
+    </Accordion>
   );
 }
