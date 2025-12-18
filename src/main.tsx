@@ -4,6 +4,9 @@ import "./index.css";
 import App from "./App.tsx";
 import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
+//import { registerSW } from 'virtual:pwa-register';
+
+//registerSW({ immediate: true })
 
 const client = new ApolloClient({
   link: new HttpLink({
