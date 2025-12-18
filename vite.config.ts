@@ -20,8 +20,8 @@ export default defineConfig({
       },
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
-        name: "Sistema de Monitoreo de Producción",
-        short_name: "ControlPiezas",
+        name: "Tracking",
+        short_name: "Tracking",
         description: "App para monitorear piezas en tiempo real",
         theme_color: "#ffffff",
         icons: [
