@@ -372,10 +372,6 @@ export default function ScanStation() {
   const [registrarObservacion, { loading: loadingO, error: errorO }] =
     useMutation(REGISTRAR_OBSERVACION);
 
-  console.log(errorI);
-  console.log(errorF);
-  console.log(errorO);
-
   const [tiempoSetupCapturado, setTiempoSetupCapturado] = useState<
     number | null
   >(null);
@@ -455,7 +451,7 @@ export default function ScanStation() {
             procesoOpId: procesoOpId,
             usuarioId: usuarioId,
             estado: nuevoEstado,
-            maquinaId: maquinaId, // ¡Se pasa la máquina seleccionada!
+            maquinaId: maquinaId,
           },
         });
         addScan("ok", `Proceso iniciado: ${procesoEspecifico.proceso.nombre}`);
@@ -467,7 +463,7 @@ export default function ScanStation() {
           variables: {
             procesoOpId: procesoOpId,
             estado: nuevoEstado,
-            observaciones: null, // No hay observaciones en el OK
+            observaciones: null,
             tiempoSetup: tiempoSetupCapturado,
           },
         });
@@ -476,6 +472,7 @@ export default function ScanStation() {
           `Proceso finalizado: ${procesoEspecifico.proceso.nombre}`
         );
         toast.success(`🎉 Finalizado: ${procesoEspecifico.proceso.nombre}`);
+        console.log("Tiempo de setup capturado:", tiempoSetupCapturado);
       } else if (estado === "done") {
         addScan("warning", "El proceso ya está completado.");
       } else if (estado === "scrap") {
@@ -491,6 +488,8 @@ export default function ScanStation() {
 
       refetchP();
     } catch (e: any) {
+      console.log(errorI);
+      console.log(errorF);
       toast.error("Error en la operación:", e);
       addScan("error", `Error en servidor: ${e.message.split(":")[0]}`);
     }
@@ -688,6 +687,7 @@ export default function ScanStation() {
       toast.success(`📝 ${tipoRegistro.replace("_", " ")} registrado.`);
       refetchP();
     } catch (e: any) {
+      console.log(errorO);
       toast.error(`Error en la operación ${tipoRegistro}:`, e);
       addScan(
         "error",
@@ -1117,11 +1117,11 @@ export default function ScanStation() {
         <DialogContent
           onEscapeKeyDown={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
-          className="sm:max-w-[400px] border-t-4 border-t-blue-600"
+          className="sm:max-w-[400px]"
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <ClipboardList className="h-6 w-6 text-blue-600" />
+              <ClipboardList className="h-6 w-6" />
               Configuración CNC (Setup)
             </DialogTitle>
             <DialogDescription>
@@ -1141,7 +1141,7 @@ export default function ScanStation() {
                   size="icon"
                   type="button"
                   onClick={() => incHours(1)}
-                  className="h-10 w-10 rounded-full shadow-sm"
+                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
                 >
                   <ChevronRight className="h-5 w-5 -rotate-90" />
                 </Button>
@@ -1155,7 +1155,7 @@ export default function ScanStation() {
                   size="icon"
                   type="button"
                   onClick={() => incHours(-1)}
-                  className="h-10 w-10 rounded-full shadow-sm"
+                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
                 >
                   <ChevronRight className="h-5 w-5 rotate-90" />
                 </Button>
@@ -1175,7 +1175,7 @@ export default function ScanStation() {
                   size="icon"
                   type="button"
                   onClick={() => incMinutes(5)}
-                  className="h-10 w-10 rounded-full shadow-sm"
+                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
                 >
                   <ChevronRight className="h-5 w-5 -rotate-90" />
                 </Button>
@@ -1189,7 +1189,7 @@ export default function ScanStation() {
                   size="icon"
                   type="button"
                   onClick={() => incMinutes(-5)}
-                  className="h-10 w-10 rounded-full shadow-sm"
+                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
                 >
                   <ChevronRight className="h-5 w-5 rotate-90" />
                 </Button>
@@ -1197,11 +1197,11 @@ export default function ScanStation() {
             </div>
 
             {/* RESUMEN VISUAL */}
-            <div className="mt-8 mx-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex justify-between items-center">
-              <span className="text-xs font-semibold text-blue-700 uppercase tracking-tight">
+            <div className="mt-8 mx-4 p-3 border rounded-xl flex justify-between items-center">
+              <span className="text-xs font-semibold uppercase tracking-tight">
                 Tiempo Total
               </span>
-              <Badge className="bg-blue-600 text-lg px-4 py-0.5 font-mono shadow-md">
+              <Badge className="text-lg px-4 py-0.5 font-mono shadow-md">
                 {estHours}h {estMinutes.toString().padStart(2, "0")}m
               </Badge>
             </div>
@@ -1222,7 +1222,7 @@ export default function ScanStation() {
             <Button
               type="button"
               onClick={confirmTimeModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 shadow-lg shadow-blue-200"
+              className="hover:bg-blue-700 text-white px-8 shadow-lg cursor-pointer"
             >
               Confirmar y Finalizar
               <CheckCircle2 className="ml-2 h-4 w-4" />
