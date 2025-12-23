@@ -202,20 +202,35 @@ export default function IntakeDePlanos() {
   ]);
 
   const handleToggleProceso = (key: number, enabled: boolean) => {
-    setProcesos((arr) =>
-      arr.map((p) => {
-        // Encuentra el proceso por su 'key'
+    setProcesos((arr) => {
+      // 1. Mapeamos el arreglo actual para aplicar el cambio
+      return arr.map((p) => {
+        // Si es el proceso al que se le hizo clic directamente
         if (p.key === key) {
           return {
             ...p,
-            enabled: enabled, // Establece el valor del checkbox (true o false)
-            // Si se deshabilita, limpiamos los minutos
+            enabled: enabled,
             minutos: enabled ? p.minutos : "",
           };
         }
+
+        // 2. LÓGICA AUTOMÁTICA:
+        // Si se activó "Programación CNC" (key 3), activamos "Maquinado CNC" (key 4)
+        if (key === 3 && enabled && p.key === 4) {
+          return {
+            ...p,
+            enabled: true,
+          };
+        }
+
         return p;
-      })
-    );
+      });
+    });
+    if (key === 3 && enabled) {
+      toast.info(
+        "Se ha seleccionado automáticamente Maquinado CNC por dependencia."
+      );
+    }
   };
 
   const handleMinutosChange = (key: number | string, value: string) => {

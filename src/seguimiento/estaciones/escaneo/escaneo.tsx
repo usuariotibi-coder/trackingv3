@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { gql } from "@apollo/client";
-import { useQuery, useMutation } from "@apollo/client/react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
 import { motion } from "framer-motion";
 import {
   Card,
@@ -86,6 +86,7 @@ interface MaquinasQueryResult {
 // Tipos de GraphQL (Definidos para mayor seguridad)
 interface ProcesoOp {
   id: string;
+  operacion: { id: string };
   estado: string;
   horaInicio: string | null;
   horaFin: string | null;
@@ -112,6 +113,17 @@ interface EmpleadoQueryResult {
       nombre: string;
     };
   } | null;
+}
+
+interface GetMaquinadoData {
+  getProcesoMaquinado: {
+    id: string;
+    __typename?: string;
+  } | null;
+}
+
+interface GetMaquinadoVars {
+  operacionId: string;
 }
 
 /* ------------------------- Util: persistencia simple ----------------------- */
@@ -208,7 +220,11 @@ export default function ScanStation() {
         tiempoEstimado
         horaInicio
         tiempoRealCalculado
+        operacion {
+          id
+        }
         proceso {
+          id
           nombre
         }
       }
@@ -231,6 +247,15 @@ export default function ScanStation() {
   });
 
   const procesoEspecifico = dataP?.procesoOpPorOperacionYProceso;
+
+  // 2. Query GET_PROCESO
+  const GET_PROCESO_MAQUINADO = gql`
+    query GetProcesoMaquinado($operacionId: ID!) {
+      getProcesoMaquinado(operacionId: $operacionId) {
+        id
+      }
+    }
+  `;
 
   // 3. Query GET_MAQUINAS (Corregido y renombrado para ser un Query)
   const GET_MAQUINAS = gql`
@@ -286,7 +311,7 @@ export default function ScanStation() {
     }
   `;
 
-  const [iniciarProcesoOp, { loading: loadingI, error: errorI }] =
+  const [iniciarProcesoOp, { loading: loadingI }] =
     useMutation(INICIAR_PROCESO);
 
   const UPDATE_STATUS = gql`
@@ -331,13 +356,11 @@ export default function ScanStation() {
       $procesoOpId: ID!
       $estado: String!
       $observaciones: String
-      $tiempoSetup: Float
     ) {
       finalizarProcesoOp(
         procesoOpId: $procesoOpId
         nuevoEstado: $estado
         observaciones: $observaciones
-        tiempoSetup: $tiempoSetup
       ) {
         id
         estado
@@ -348,8 +371,18 @@ export default function ScanStation() {
     }
   `;
 
-  const [finalizarProcesoOp, { loading: loadingF, error: errorF }] =
+  const [finalizarProcesoOp, { loading: loadingF }] =
     useMutation(FINALIZAR_PROCESO);
+
+  // Mutación de Tiempo Setup para maquinado CNC al finalizar programacion CNC
+  const UPDATE_TIEMPO_SETUP = gql`
+    mutation UpdateTiempoSetup($procesoOpId: ID!, $tiempoSetup: Float!) {
+      updateTiempoSetup(procesoOpId: $procesoOpId, tiempoSetup: $tiempoSetup) {
+        id
+        tiempoSetup
+      }
+    }
+  `;
 
   // 6. Mutación de REGISTRO DE OBSERVACIÓN (CORREGIDA)
   const REGISTRAR_OBSERVACION = gql`
@@ -380,19 +413,25 @@ export default function ScanStation() {
   const [estHours, setEstHours] = useState(0);
   const [estMinutes, setEstMinutes] = useState(0);
 
+  const [getMaquinado] = useLazyQuery<GetMaquinadoData, GetMaquinadoVars>(
+    GET_PROCESO_MAQUINADO
+  );
+  const [updateSetup] = useMutation(UPDATE_TIEMPO_SETUP);
+
   const confirmTimeModal = () => {
-    const totalMinutos = estHours * 60 + estMinutes;
+    const totalMinutos = estHours * 60 + estMinutes; //
 
     if (totalMinutos <= 0) {
       toast.error("El tiempo debe ser mayor a 0");
       return;
     }
 
+    // Actualizamos el estado para la UI, pero pasamos 'totalMinutos' directamente
     setTiempoSetupCapturado(totalMinutos);
     setTimeModalOpen(false);
 
-    // Ejecutamos la acción de escaneo inmediatamente después de confirmar
-    setTimeout(() => handleScanAction(), 100);
+    // IMPORTANTE: Pasar el valor como argumento aquí
+    setTimeout(() => handleScanAction(totalMinutos), 100);
   };
 
   // -------- Tiempo estimado helpers --------
@@ -412,86 +451,93 @@ export default function ScanStation() {
 
   // ------------------------- Lógica de Scaneo y Flujo -------------------------
 
-  const handleScanAction = async () => {
-    // Pre-validación de datos esenciales
-    if (!dataE?.usuario?.id || !procesoEspecifico?.id) {
-      addScan(
-        "error",
-        "Datos de usuario o proceso no encontrados o inválidos."
-      );
-      return;
-    }
+  const handleScanAction = async (tiempoSetupManual?: number) => {
+    if (!procesoEspecifico || !dataE?.usuario) return;
 
-    const { estado } = procesoEspecifico;
-    const procesoOpId = procesoEspecifico.id;
-    const usuarioId = dataE.usuario.id;
+    const procesoId = procesoEspecifico.proceso.id;
+    const operacionId = procesoEspecifico.operacion.id;
 
-    // --- NUEVA VALIDACIÓN DE MÁQUINA ---
-    if (
-      estado === "pending" && // Solo se requiere al iniciar
-      maquinas &&
-      maquinas.length > 0 &&
-      !maquinaSeleccionadaId
-    ) {
-      addScan("error", "Debe seleccionar una máquina para iniciar el proceso.");
-      return;
-    }
-    // ----------------------------------
-
-    const maquinaId = maquinaSeleccionadaId; // Usamos la máquina seleccionada
-
-    let nuevoEstado: string;
+    console.log("Tiempo Setup Recibido:", tiempoSetupManual);
 
     try {
-      if (estado === "pending") {
-        // --- INICIAR PROCESO ---
-        nuevoEstado = "in_progress";
+      // --- LÓGICA PARA INICIAR PROCESO ---
+      if (procesoEspecifico.estado === "pending") {
         await iniciarProcesoOp({
           variables: {
-            procesoOpId: procesoOpId,
-            usuarioId: usuarioId,
-            estado: nuevoEstado,
-            maquinaId: maquinaId,
+            procesoOpId: procesoEspecifico.id,
+            usuarioId: dataE.usuario.id,
+            estado: "in_progress",
+            maquinaId: maquinaSeleccionadaId,
           },
         });
-        addScan("ok", `Proceso iniciado: ${procesoEspecifico.proceso.nombre}`);
-        toast.success(`✅ Iniciado: ${procesoEspecifico.proceso.nombre}`);
-      } else if (estado === "in_progress") {
-        // --- FINALIZAR PROCESO (DONE) ---
-        nuevoEstado = "done";
-        await finalizarProcesoOp({
-          variables: {
-            procesoOpId: procesoOpId,
-            estado: nuevoEstado,
-            observaciones: null,
-            tiempoSetup: tiempoSetupCapturado,
-          },
-        });
-        addScan(
-          "ok",
-          `Proceso finalizado: ${procesoEspecifico.proceso.nombre}`
-        );
-        toast.success(`🎉 Finalizado: ${procesoEspecifico.proceso.nombre}`);
-        console.log("Tiempo de setup capturado:", tiempoSetupCapturado);
-      } else if (estado === "done") {
-        addScan("warning", "El proceso ya está completado.");
-      } else if (estado === "scrap") {
-        addScan("warning", "El proceso fue marcado como SCRAP.");
-      } else if (estado === "paused") {
-        addScan(
-          "warning",
-          "El proceso está PAUSADO. Use el botón 'Reanudar' para continuar."
-        );
-      } else {
-        addScan("error", `Estado desconocido: ${estado}.`);
+        addScan("ok", `Proceso ${procesoEspecifico.proceso.nombre} iniciado.`);
+        toast.success("▶️ Proceso iniciado");
       }
 
-      refetchP();
-    } catch (e: any) {
-      console.log(errorI);
-      console.log(errorF);
-      toast.error("Error en la operación:", e);
-      addScan("error", `Error en servidor: ${e.message.split(":")[0]}`);
+      // --- LÓGICA PARA FINALIZAR PROCESO ---
+      else if (procesoEspecifico.estado === "in_progress") {
+        // CASO: Programación CNC (ID 3) -> Guardar tiempo en Maquinado (ID 4)
+        if (procesoId === "3") {
+          console.log("🔍 Detectado Proceso 3 (Programación).");
+
+          if (tiempoSetupManual) {
+            console.log("📡 Buscando Maquinado para Op:", operacionId);
+
+            const { data: dataMaq } = await getMaquinado({
+              variables: { operacionId: operacionId },
+            });
+
+            console.log("📦 Resultado getMaquinado:", dataMaq);
+
+            if (dataMaq?.getProcesoMaquinado) {
+              console.log(
+                "✅ Maquinado encontrado ID:",
+                dataMaq.getProcesoMaquinado.id
+              );
+
+              // IMPORTANTE: Verifica que el nombre sea tiempo_setup (snake_case)
+              const responseSetup = await updateSetup({
+                variables: {
+                  procesoOpId: dataMaq.getProcesoMaquinado.id,
+                  tiempoSetup: tiempoSetupManual,
+                },
+              });
+              console.log("💾 Respuesta de updateSetup:", responseSetup);
+              toast.info("⏱️ Tiempo de setup asignado a Maquinado CNC");
+            } else {
+              console.error(
+                "❌ No se encontró el proceso de Maquinado (ID 4) en esta operación."
+              );
+            }
+          } else {
+            console.warn("⚠️ No se recibió tiempoSetupManual en la función.");
+          }
+        }
+
+        // Finalización del proceso actual (Programación)
+        await finalizarProcesoOp({
+          variables: {
+            procesoOpId: procesoEspecifico.id,
+            estado: "done",
+          },
+        });
+
+        // Limpiar estados de UI
+        setTiempoSetupCapturado(null);
+        setEstHours(0);
+        setEstMinutes(0);
+        addScan(
+          "ok",
+          `Proceso ${procesoEspecifico.proceso.nombre} finalizado.`
+        );
+        toast.success("✅ Proceso completado");
+      }
+
+      setWorkOrder("");
+    } catch (error: any) {
+      addScan("error", error.message || "Error al procesar el escaneo");
+      console.error("❌ ERROR CRÍTICO:", error);
+      toast.error("Error: " + error.message);
     }
   };
 
@@ -599,8 +645,8 @@ export default function ScanStation() {
       procesoEspecifico?.estado === "in_progress" &&
       tiempoSetupCapturado === null
     ) {
-      setTimeModalOpen(true); // Abrir modal del tiempo CNC
-      return;
+      setTimeModalOpen(true);
+      return; // Aquí se detiene y espera al confirmTimeModal
     }
 
     // 4. Ejecutar la acción si tenemos un ProcesoOp cargado y no está cargando
@@ -780,10 +826,36 @@ export default function ScanStation() {
     maquinas.length > 0 &&
     !maquinaSeleccionadaId;
 
-  // function showData() {
-  //   console.log(employeeId);
-  //   console.log(workOrder);
-  // }
+  async function showData() {
+    console.log("--- DEBUG DATA ---");
+    console.log("Usuario actual:", dataE?.usuario);
+    console.log("Proceso específico actual:", procesoEspecifico);
+
+    if (procesoEspecifico?.operacion?.id) {
+      console.log(
+        "Buscando proceso de Maquinado para Operación ID:",
+        procesoEspecifico.operacion.id
+      );
+
+      // Ejecutamos el query perezoso manualmente para ver qué devuelve
+      const result = await getMaquinado({
+        variables: { operacionId: procesoEspecifico.operacion.id },
+      });
+
+      console.log(
+        "Resultado de Query Maquinado:",
+        result.data?.getProcesoMaquinado
+      );
+
+      if (!result.data?.getProcesoMaquinado) {
+        console.warn(
+          "¡OJO!: No se encontró ningún proceso con ID 4 para esta operación en la base de datos."
+        );
+      }
+    } else {
+      console.warn("No hay una operación cargada para buscar el maquinado.");
+    }
+  }
 
   // Renderizado
   return (
@@ -794,6 +866,7 @@ export default function ScanStation() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-2xl font-semibold tracking-tight"
+          onClick={showData}
         >
           Estación de Escaneo: {dataE?.usuario?.proceso?.nombre}
         </motion.h1>
@@ -1121,15 +1194,14 @@ export default function ScanStation() {
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <ClipboardList className="h-6 w-6" />
-              Configuración CNC (Setup)
+              Tiempo estimado de producción
             </DialogTitle>
             <DialogDescription>
-              Indica cuánto tiempo tomó la preparación de la máquina.
+              Captura el tiempo estimado (en horas y minutos) para continuar
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-6">
+          <div className="py-3">
             <div className="flex justify-center items-center gap-6">
               {/* CONTROL DE HORAS */}
               <div className="flex flex-col items-center gap-2">
@@ -1137,11 +1209,8 @@ export default function ScanStation() {
                   Horas
                 </Label>
                 <Button
-                  variant="secondary"
-                  size="icon"
-                  type="button"
                   onClick={() => incHours(1)}
-                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
+                  className="bg-white text-black h-10 w-10 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
                 >
                   <ChevronRight className="h-5 w-5 -rotate-90" />
                 </Button>
@@ -1151,17 +1220,14 @@ export default function ScanStation() {
                 </div>
 
                 <Button
-                  variant="secondary"
-                  size="icon"
-                  type="button"
                   onClick={() => incHours(-1)}
-                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
+                  className="bg-white text-black h-10 w-10 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
                 >
                   <ChevronRight className="h-5 w-5 rotate-90" />
                 </Button>
               </div>
 
-              <div className="text-4xl font-light text-muted-foreground/50 mb-2">
+              <div className="text-4xl font-light text-muted-foreground/50 mt-3">
                 :
               </div>
 
@@ -1171,11 +1237,8 @@ export default function ScanStation() {
                   Minutos
                 </Label>
                 <Button
-                  variant="secondary"
-                  size="icon"
-                  type="button"
                   onClick={() => incMinutes(5)}
-                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
+                  className="bg-white text-black h-10 w-10 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
                 >
                   <ChevronRight className="h-5 w-5 -rotate-90" />
                 </Button>
@@ -1185,11 +1248,8 @@ export default function ScanStation() {
                 </div>
 
                 <Button
-                  variant="secondary"
-                  size="icon"
-                  type="button"
                   onClick={() => incMinutes(-5)}
-                  className="h-10 w-10 rounded-full shadow-sm cursor-pointer"
+                  className="bg-white text-black h-10 w-10 rounded-lg shadow-sm cursor-pointer hover:bg-gray-100"
                 >
                   <ChevronRight className="h-5 w-5 rotate-90" />
                 </Button>
@@ -1197,7 +1257,7 @@ export default function ScanStation() {
             </div>
 
             {/* RESUMEN VISUAL */}
-            <div className="mt-8 mx-4 p-3 border rounded-xl flex justify-between items-center">
+            <div className="mt-3 mx-4 p-3 border rounded-xl flex justify-between items-center">
               <span className="text-xs font-semibold uppercase tracking-tight">
                 Tiempo Total
               </span>
@@ -1207,7 +1267,7 @@ export default function ScanStation() {
             </div>
           </div>
 
-          <DialogFooter className="sm:justify-between gap-2 border-t pt-4">
+          <DialogFooter className="sm:justify-between gap-2 border-t pt-3">
             <Button
               variant="ghost"
               type="button"
