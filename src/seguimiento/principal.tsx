@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import { Timer } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Accordion,
@@ -131,8 +131,8 @@ function FlowImpactChart() {
             i === 0
               ? paddingX
               : i === stages.length - 1
-              ? width - paddingX
-              : (paths[i - 1].x2 + (paths[i]?.x1 ?? paths[i - 1].x2)) / 2;
+                ? width - paddingX
+                : (paths[i - 1].x2 + (paths[i]?.x1 ?? paths[i - 1].x2)) / 2;
           const y = i % 2 === 0 ? 80 : 250;
 
           return (
@@ -156,23 +156,6 @@ function FlowImpactChart() {
       </svg>
     </div>
   );
-}
-
-/* ---------- Utilidades de Tiempo (Inspiradas en machines.tsx) ---------- */
-
-// Calcula minutos transcurridos desde una fecha ISO
-function minsSince(ts?: string | null) {
-  if (!ts) return 0;
-  const diffMs = Date.now() - new Date(ts).getTime();
-  return Math.max(0, Math.floor(diffMs / 60000));
-}
-
-// Formatea minutos a un string legible (ej: 1h 15m)
-function fmtElapsed(mins: number) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h <= 0) return `${m}m`;
-  return `${h}h ${m}m`;
 }
 
 /* ---------- Tipos de Datos ---------- */
@@ -221,24 +204,30 @@ export default function ImpactoPage() {
   );
 }
 
-function ProjectProgress() {
+export function ProjectProgress() {
   const [tick, setTick] = useState(0);
 
-  // Efecto para forzar re-renderizado cada minuto y actualizar los cronómetros
+  // Forzar re-renderizado cada minuto para actualizar cronómetros
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(timer);
   }, []);
 
   const GET_DATOS = gql`
-    query {
+    query GetAvanceProyectos {
       operaciones {
+        id
+        workorder {
+          cantidad
+        }
         proyecto {
           id
           proyecto
         }
         procesos {
+          id
           estado
+          conteoActual
           proceso {
             nombre
           }
@@ -249,63 +238,87 @@ function ProjectProgress() {
     }
   `;
 
-  const {
-    loading,
-    error,
-    data: dataOpP,
-  } = useQuery<OperacionesQueryResult>(GET_DATOS);
+  const { loading, error, data } = useQuery<OperacionesQueryResult>(GET_DATOS);
 
   const rows = useMemo(() => {
-    if (!dataOpP?.operaciones) return [];
+    if (!data?.operaciones) return [];
 
-    const proyectosMap = dataOpP.operaciones.reduce((acc, op) => {
+    const proyectosMap = data.operaciones.reduce((acc: any, op: any) => {
       const projectId = op.proyecto.id;
+      const cantidadWO = op.workorder.cantidad;
+
       if (!acc[projectId]) {
         acc[projectId] = {
           nombre: op.proyecto.proyecto,
-          total: 0,
-          weighted: 0,
-          procesosRaw: op.procesos, // Guardamos la lista de procesos para el acordeón
+          piezasTotalesMeta: 0,
+          piezasProcesadasReales: 0,
+          operaciones: [],
+          tieneCuelloBotella: false, // Flag para la cabecera
         };
       }
 
-      const totalProcesosOp = op.procesos.length;
-      const done = op.procesos.filter((x) => x.estado === "done").length;
-      const inProgress = op.procesos.filter(
-        (x) => x.estado === "in_progress"
-      ).length;
+      let actualOp = 0;
+      let metaOp = op.procesos.length * cantidadWO;
+      let bottleneckEnOp = false;
 
-      acc[projectId].total += totalProcesosOp;
-      acc[projectId].weighted += done + inProgress * 0.5; // Ponderación: Terminado=1, En curso=0.5
+      op.procesos.forEach((p: any, idx: number) => {
+        actualOp += p.conteoActual;
+        // Lógica de Cuello de Botella: el proceso anterior tiene más piezas que el actual
+        if (idx > 0 && op.procesos[idx - 1].conteoActual > p.conteoActual) {
+          bottleneckEnOp = true;
+        }
+      });
+
+      acc[projectId].piezasTotalesMeta += metaOp;
+      acc[projectId].piezasProcesadasReales += actualOp;
+
+      // Si alguna operación tiene cuello de botella, el proyecto completo se marca
+      if (bottleneckEnOp) acc[projectId].tieneCuelloBotella = true;
+
+      acc[projectId].operaciones.push({
+        ...op,
+        cantidadWO,
+        bottleneckEnOp,
+      });
+
       return acc;
-    }, {} as Record<string, any>);
+    }, {});
 
-    return Object.entries(proyectosMap).map(([id, stats]) => {
+    return Object.entries(proyectosMap).map(([id, stats]: [string, any]) => {
       const pct =
-        stats.total > 0
-          ? Math.min(100, Math.round((stats.weighted / stats.total) * 100))
+        stats.piezasTotalesMeta > 0
+          ? Math.min(
+              100,
+              Math.round(
+                (stats.piezasProcesadasReales / stats.piezasTotalesMeta) * 100,
+              ),
+            )
           : 0;
       return {
         id,
         proyecto: stats.nombre,
-        maquinadas: Math.round(stats.weighted),
-        total: stats.total,
         pct,
-        procesos: stats.procesosRaw,
+        operaciones: stats.operaciones,
+        tieneCuelloBotella: stats.tieneCuelloBotella,
         color:
           pct >= 80
             ? "bg-emerald-500"
             : pct >= 50
-            ? "bg-amber-500"
-            : "bg-rose-500",
+              ? "bg-amber-500"
+              : "bg-rose-500",
       };
     });
-  }, [dataOpP, tick]);
+  }, [data, tick]);
 
-  if (loading) return <p className="text-center py-4">Cargando avance...</p>;
+  if (loading)
+    return (
+      <p className="text-center py-4 text-sm animate-pulse">
+        Cargando avance de producción...
+      </p>
+    );
   if (error)
     return (
-      <p className="text-center py-4 text-rose-500 italic">
+      <p className="text-center py-4 text-rose-500 text-sm italic">
         Error: {error.message}
       </p>
     );
@@ -316,14 +329,31 @@ function ProjectProgress() {
         <AccordionItem
           key={r.id}
           value={r.id}
-          className="rounded-xl border border-neutral-200/70 px-4 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/40 overflow-hidden shadow-sm"
+          className={cn(
+            "rounded-xl border px-4 overflow-hidden shadow-sm transition-colors",
+            r.tieneCuelloBotella
+              ? "border-amber-200 bg-amber-50/30 dark:border-amber-900 dark:bg-amber-950/10"
+              : "border-neutral-200/70 bg-white/40 dark:border-neutral-800 dark:bg-neutral-900/40",
+          )}
         >
           <AccordionTrigger className="hover:no-underline py-4">
             <div className="flex flex-col w-full pr-4 text-left">
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-bold">{r.proyecto}</span>
-                <span className="tabular-nums text-neutral-500">
-                  {r.maquinadas}/{r.total} ({r.pct}%)
+                <div className="flex items-center gap-2">
+                  <span className="font-bold uppercase tracking-tight">
+                    {r.proyecto}
+                  </span>
+
+                  {/* NOTIFICACIÓN EN CABECERA */}
+                  {r.tieneCuelloBotella && (
+                    <Badge className="h-5 px-1.5 animate-pulse bg-amber-500 hover:bg-amber-600 text-black border-none font-bold text-[9px]">
+                      <TriangleAlert className="h-3 w-3 mr-1" />
+                      CUELLO DE BOTELLA
+                    </Badge>
+                  )}
+                </div>
+                <span className="tabular-nums font-mono text-neutral-500">
+                  {r.pct}% Total
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/70">
@@ -335,73 +365,80 @@ function ProjectProgress() {
             </div>
           </AccordionTrigger>
 
-          <AccordionContent className="pb-4 pt-0">
-            <div className="grid gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-4">
-              {/* ORDEN CRONOLÓGICO: Prioriza procesos iniciados ordenados por tiempo */}
-              {[...r.procesos]
-                .sort((a, b) => {
-                  if (!a.horaInicio) return 1;
-                  if (!b.horaInicio) return -1;
-                  return (
-                    new Date(a.horaInicio).getTime() -
-                    new Date(b.horaInicio).getTime()
-                  );
-                })
-                .map((p, idx) => {
-                  const elapsed = minsSince(p.horaInicio);
-                  const isRunning = p.estado === "in_progress";
-                  const overTime =
-                    isRunning && p.tiempoEstimado && elapsed > p.tiempoEstimado;
+          <AccordionContent className="pb-4 pt-2">
+            {r.operaciones.map((op: any) => (
+              <div key={op.id} className="mt-4 first:mt-0">
+                <h4 className="text-[10px] font-bold text-neutral-400 uppercase mb-2 tracking-widest border-b pb-1">
+                  Operación: {op.id} · {op.cantidadWO} Piezas Meta
+                </h4>
+                <div className="grid gap-3">
+                  {op.procesos.map((p: any, idx: number) => {
+                    const porcentajeProceso =
+                      (p.conteoActual / op.cantidadWO) * 100;
 
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-lg bg-white/60 dark:bg-neutral-800/40 p-3 text-xs border border-neutral-100 dark:border-neutral-700/50"
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className="font-semibold text-neutral-800 dark:text-neutral-100">
-                          {p.proceso.nombre}
-                        </span>
-                        {isRunning && p.horaInicio && (
-                          <span
-                            className={cn(
-                              "flex items-center gap-1 font-medium",
-                              overTime
-                                ? "text-rose-600 animate-pulse"
-                                : "text-neutral-500"
-                            )}
-                          >
-                            <Timer className="h-3 w-3" /> {fmtElapsed(elapsed)}{" "}
-                            transcurridos
-                            {p.tiempoEstimado && (
-                              <span className="opacity-70">
-                                / {p.tiempoEstimado}m obj.
+                    // Lógica para detectar si este paso específico es el que está frenando el flujo
+                    const piezasAnteriores =
+                      idx > 0
+                        ? op.procesos[idx - 1].conteoActual
+                        : op.cantidadWO;
+                    const esCuelloBotella = piezasAnteriores > p.conteoActual;
+                    const piezasEnEspera = piezasAnteriores - p.conteoActual;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className={cn(
+                          "flex flex-col gap-2 rounded-lg p-3 border transition-all",
+                          esCuelloBotella
+                            ? "bg-amber-100/40 border-amber-300 dark:bg-amber-950/30 dark:border-amber-800 shadow-sm"
+                            : "bg-white/60 dark:bg-neutral-800/40 border-neutral-100 dark:border-neutral-700",
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span
+                              className={cn(
+                                "text-xs font-bold",
+                                p.conteoActual === op.cantidadWO
+                                  ? "text-emerald-600"
+                                  : "text-neutral-800 dark:text-neutral-100",
+                              )}
+                            >
+                              {p.proceso.nombre}
+                            </span>
+                            {esCuelloBotella && (
+                              <span className="text-[10px] text-amber-600 font-bold italic animate-pulse">
+                                🚧 {piezasEnEspera} piezas listas para procesar
                               </span>
                             )}
-                          </span>
-                        )}
+                          </div>
+                          <Badge
+                            className="font-mono text-[10px] bg-white/80 dark:bg-neutral-900/80 text-neutral-600"
+                            variant="outline"
+                          >
+                            {p.conteoActual} / {op.cantidadWO}
+                          </Badge>
+                        </div>
+
+                        {/* Barra de progreso por etapa */}
+                        <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden dark:bg-neutral-700">
+                          <div
+                            className={cn(
+                              "h-full transition-all duration-500",
+                              p.conteoActual === op.cantidadWO
+                                ? "bg-emerald-500"
+                                : "bg-blue-500",
+                              p.estado === "in_progress" && "animate-pulse",
+                            )}
+                            style={{ width: `${porcentajeProceso}%` }}
+                          />
+                        </div>
                       </div>
-                      <Badge
-                        className={cn(
-                          "px-2 py-0 text-[10px] capitalize font-bold",
-                          p.estado === "done"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : isRunning
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-neutral-100 text-neutral-500"
-                        )}
-                        variant="outline"
-                      >
-                        {p.estado === "in_progress"
-                          ? "Activo"
-                          : p.estado === "done"
-                          ? "Terminado"
-                          : "Pendiente"}
-                      </Badge>
-                    </div>
-                  );
-                })}
-            </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </AccordionContent>
         </AccordionItem>
       ))}

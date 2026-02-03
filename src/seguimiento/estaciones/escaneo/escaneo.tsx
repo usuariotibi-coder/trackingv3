@@ -98,6 +98,7 @@ interface ProcesoOp {
   horaInicio: string | null;
   horaFin: string | null;
   tiempoRealCalculado: number | null;
+  conteoActual: number;
   tiempoEstimado: number | null;
   observaciones: string | null;
   proceso: {
@@ -131,6 +132,14 @@ interface GetMaquinadoData {
 
 interface GetMaquinadoVars {
   operacionId: string;
+}
+
+interface RegistrarPiezaResponse {
+  registrarPieza: {
+    id: string;
+    conteoActual: number;
+    estado: string;
+  };
 }
 
 /* ------------------------- Util: persistencia simple ----------------------- */
@@ -227,8 +236,12 @@ export default function ScanStation() {
         tiempoEstimado
         horaInicio
         tiempoRealCalculado
+        conteoActual
         operacion {
           id
+          workorder {
+            cantidad
+          }
         }
         proceso {
           id
@@ -409,6 +422,15 @@ export default function ScanStation() {
     }
   `;
 
+  const REGISTRAR_PIEZA = gql`
+    mutation RegistrarPieza($procesoOpId: ID!) {
+      registrarPieza(procesoOpId: $procesoOpId) {
+        id
+        conteoActual
+      }
+    }
+  `;
+
   const CREAR_INDIRECTO = gql`
     mutation CrearIndirecto($usuarioId: ID!, $motivo: String!) {
       crearIndirecto(input: { usuarioId: $usuarioId, motivo: $motivo }) {
@@ -418,6 +440,8 @@ export default function ScanStation() {
       }
     }
   `;
+
+  const [registrarPieza] = useMutation<RegistrarPiezaResponse>(REGISTRAR_PIEZA);
 
   const [registrarObservacion, { loading: loadingO, error: errorO }] =
     useMutation(REGISTRAR_OBSERVACION);
@@ -472,14 +496,11 @@ export default function ScanStation() {
 
   const handleScanAction = async (tiempoSetupManual?: number) => {
     if (!procesoEspecifico || !dataE?.usuario) return;
-
     const procesoId = procesoEspecifico.proceso.id;
     const operacionId = procesoEspecifico.operacion.id;
 
-    //console.log("Tiempo Setup Recibido:", tiempoSetupManual);
-
     try {
-      // --- LÓGICA PARA INICIAR PROCESO ---
+      // --- INICIO ---
       if (procesoEspecifico.estado === "pending") {
         await iniciarProcesoOp({
           variables: {
@@ -489,62 +510,50 @@ export default function ScanStation() {
             maquinaId: maquinaSeleccionadaId,
           },
         });
-        addScan("ok", `Proceso ${procesoEspecifico.proceso.nombre} iniciado.`);
-        toast.success("▶️ Proceso iniciado. Tiempos indirectos cerrados.");
+        addScan("ok", "Proceso iniciado");
+        toast.success("▶️ Proceso iniciado.");
       }
 
-      // --- LÓGICA PARA FINALIZAR PROCESO ---
+      // --- REGISTRO DE PIEZA ---
       else if (procesoEspecifico.estado === "in_progress") {
-        // CASO: Programación CNC (ID 3) -> Guardar tiempo en Maquinado (ID 4)
-        if (procesoId === "3") {
-          if (tiempoSetupManual) {
-            const { data: dataMaq } = await getMaquinado({
-              variables: { operacionId: operacionId },
+        if (procesoId === "3" && tiempoSetupManual) {
+          const { data: dataMaq } = await getMaquinado({
+            variables: { operacionId },
+          });
+          if (dataMaq?.getProcesoMaquinado) {
+            await updateSetup({
+              variables: {
+                procesoOpId: dataMaq.getProcesoMaquinado.id,
+                tiempoSetup: tiempoSetupManual,
+              },
             });
-
-            if (dataMaq?.getProcesoMaquinado) {
-              const responseSetup = await updateSetup({
-                variables: {
-                  procesoOpId: dataMaq.getProcesoMaquinado.id,
-                  tiempoSetup: tiempoSetupManual,
-                },
-              });
-              console.log("💾 Respuesta de updateSetup:", responseSetup);
-              toast.info("⏱️ Tiempo de setup asignado a Maquinado CNC");
-            } else {
-              console.error(
-                "❌ No se encontró el proceso de Maquinado (ID 4) en esta operación.",
-              );
-            }
-          } else {
-            console.warn("⚠️ No se recibió tiempoSetupManual en la función.");
           }
         }
 
-        // Finalización del proceso actual (Programación)
-        await finalizarProcesoOp({
-          variables: {
-            procesoOpId: procesoEspecifico.id,
-            estado: "done",
-          },
+        const { data: res } = await registrarPieza({
+          variables: { procesoOpId: procesoEspecifico.id },
         });
 
-        // Limpiar estados de UI
-        setTiempoSetupCapturado(null);
-        setEstHours(0);
-        setEstMinutes(0);
-        addScan(
-          "ok",
-          `Proceso ${procesoEspecifico.proceso.nombre} finalizado.`,
-        );
-        toast.success("✅ Proceso completado");
+        if (res?.registrarPieza) {
+          const actual = res.registrarPieza.conteoActual;
+          const meta = (procesoEspecifico as any).operacion.workorder.cantidad;
+
+          if (res.registrarPieza.estado === "done") {
+            addScan("ok", `FINALIZADO: ${actual}/${meta} piezas`);
+            toast.success(`✅ Orden completada: ${actual}/${meta}`);
+          } else {
+            // Aquí guardamos el número de pieza en el historial local
+            addScan("ok", `Pieza registrada: ${actual} de ${meta}`);
+            toast.info(`🧩 Avance: ${actual}/${meta}`);
+          }
+        }
       }
 
       setWorkOrder("");
+      refetchP();
     } catch (error: any) {
-      addScan("error", error.message || "Error al procesar el escaneo");
-      console.error("❌ ERROR CRÍTICO:", error);
       toast.error("Error: " + error.message);
+      addScan("error", error.message);
     }
   };
 
