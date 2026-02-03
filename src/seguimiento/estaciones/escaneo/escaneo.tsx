@@ -1114,12 +1114,16 @@ export default function ScanStation() {
               </div>
             )}
 
-            {!procesoEspecifico && workOrder && !loadingP && !errorP && (
-              <p className="text-center py-4 text-orange-600">
-                No se encontró el paso **{dataE?.usuario?.proceso?.nombre}**
-                para la Operación **{workOrder}**.
-              </p>
-            )}
+            {!procesoEspecifico &&
+              workOrder &&
+              locked &&
+              !loadingP &&
+              !errorP && (
+                <p className="text-center py-4 text-orange-600">
+                  No se encontró el paso **{dataE?.usuario?.proceso?.nombre}**
+                  para la Operación **{workOrder}**.
+                </p>
+              )}
           </CardContent>
         </Card>
       </div>
