@@ -21,5 +21,5 @@ createRoot(document.getElementById("root")!).render(
     <ApolloProvider client={client}>
       <App />
     </ApolloProvider>
-  </StrictMode>
+  </StrictMode>,
 );

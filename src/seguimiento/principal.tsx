@@ -217,6 +217,7 @@ export function ProjectProgress() {
     query GetAvanceProyectos {
       operaciones {
         id
+        operacion
         workorder {
           cantidad
         }
@@ -264,7 +265,7 @@ export function ProjectProgress() {
       op.procesos.forEach((p: any, idx: number) => {
         actualOp += p.conteoActual;
         // Lógica de Cuello de Botella: el proceso anterior tiene más piezas que el actual
-        if (idx > 0 && op.procesos[idx - 1].conteoActual > p.conteoActual) {
+        if (idx > 0 && op.procesos[idx - 1].conteoActual - p.conteoActual > 3) {
           bottleneckEnOp = true;
         }
       });
@@ -369,7 +370,7 @@ export function ProjectProgress() {
             {r.operaciones.map((op: any) => (
               <div key={op.id} className="mt-4 first:mt-0">
                 <h4 className="text-[10px] font-bold text-neutral-400 uppercase mb-2 tracking-widest border-b pb-1">
-                  Operación: {op.id} · {op.cantidadWO} Piezas Meta
+                  Operación: {op.operacion} · {op.cantidadWO} Piezas Meta
                 </h4>
                 <div className="grid gap-3">
                   {op.procesos.map((p: any, idx: number) => {
@@ -408,7 +409,7 @@ export function ProjectProgress() {
                             </span>
                             {esCuelloBotella && (
                               <span className="text-[10px] text-amber-600 font-bold italic animate-pulse">
-                                🚧 {piezasEnEspera} piezas listas para procesar
+                                {piezasEnEspera} piezas listas para procesar
                               </span>
                             )}
                           </div>

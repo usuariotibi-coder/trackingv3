@@ -1,13 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { gql } from "@apollo/client";
-import { useLazyQuery } from "@apollo/client/react";
+import { useLazyQuery, useMutation } from "@apollo/client/react";
 import {
   PackageCheck,
   Search,
   Warehouse,
-  ArrowRightLeft,
   History,
-  CheckCircle2,
+  ListFilter,
 } from "lucide-react";
 import {
   Card,
@@ -21,177 +20,282 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
-interface ProcesoAlmacen {
+interface Proceso {
+  id: string;
+  conteoActual: number;
   proceso: {
     nombre: string;
   };
-  conteoActual: number;
-  estado: string;
 }
 
-interface WorkOrderAlmacen {
+interface Operacion {
+  id: string;
+  operacion: string;
+  totalAlmacen: number;
+  procesos: Proceso[];
+}
+
+interface WorkOrder {
   id: string;
   plano: string;
   cantidad: number;
-  proyecto: {
+  proyecto?: {
     proyecto: string;
   };
-  operacion: {
-    id: string;
-    procesos: ProcesoAlmacen[];
-  };
+  operaciones: Operacion[];
 }
 
-interface GetWOAlmacenData {
-  workorder: WorkOrderAlmacen;
+// Interfaz para el objeto de respuesta de la Query
+interface GetWOData {
+  workorderByPlano: WorkOrder | null;
 }
 
-/* ---------- Query para buscar la WO y sus procesos ---------- */
-const GET_WO_ALMACEN = gql`
-  query GetWOAlmacen($plano: String!) {
-    workorder(plano: $plano) {
+// Interfaz para las variables de la Query
+interface GetWOVariables {
+  plano: string;
+}
+
+/* ---------- Queries y Mutaciones ---------- */
+
+const GET_WO_DETALLE = gql`
+  query GetWODetalle($plano: String!) {
+    workorderByPlano(plano: $plano) {
       id
       plano
       cantidad
       proyecto {
         proyecto
       }
-      operacion {
+      operaciones {
         id
+        operacion
+        totalAlmacen
         procesos {
+          id
+          conteoActual
           proceso {
             nombre
           }
-          conteoActual
-          estado
         }
       }
     }
   }
 `;
 
+const REGISTRAR_ENTRADA = gql`
+  mutation RegistrarEntrada($woId: ID!, $opId: ID!, $cant: Int!) {
+    registrarEntradaAlmacen(
+      workorderId: $woId
+      operacionId: $opId
+      cantidad: $cant
+    ) {
+      id
+      cantidad
+    }
+  }
+`;
+
 export default function AlmacenPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedOpId, setSelectedOpId] = useState<string>("");
   const [cantidadIngreso, setCantidadIngreso] = useState<number>(1);
 
-  const [getWO, { data, loading }] = useLazyQuery<GetWOAlmacenData>(
-    GET_WO_ALMACEN,
+  // Query para buscar el plano
+  const [getWO, { data, loading }] = useLazyQuery<GetWOData, GetWOVariables>(
+    GET_WO_DETALLE,
     {
       fetchPolicy: "network-only",
     },
   );
 
-  const wo = data?.workorder;
+  // Manejamos la lógica de post-carga aquí
+  useEffect(() => {
+    if (data?.workorderByPlano?.operaciones) {
+      const ops = data.workorderByPlano.operaciones;
+      if (ops.length === 1) {
+        setSelectedOpId(ops[0].id);
+      }
+    }
+  }, [data]);
 
-  // Calculamos el avance del último proceso (ej: Calidad o el último en la lista)
-  // para saber cuántas piezas están "listas" para entrar.
+  // Mutación para guardar
+  const [registrarEntrada, { loading: sending }] =
+    useMutation(REGISTRAR_ENTRADA);
+
+  const wo = data?.workorderByPlano;
+  const operacionSeleccionada = wo?.operaciones?.find(
+    (o: any) => o.id === selectedOpId,
+  );
+
+  // El último proceso indica cuántas piezas están listas para almacén
   const ultimoProceso =
-    wo?.operacion?.procesos[wo.operacion.procesos.length - 1];
+    operacionSeleccionada?.procesos?.[
+      operacionSeleccionada.procesos.length - 1
+    ];
   const piezasListas = ultimoProceso?.conteoActual || 0;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm) return;
     getWO({ variables: { plano: searchTerm } });
+    setSelectedOpId(""); // Reset al buscar nuevo
   };
 
-  const handleRegistrarIngreso = () => {
-    if (cantidadIngreso <= 0) {
-      toast.error("La cantidad debe ser mayor a 0");
-      return;
+  const handleRegistrarIngreso = async () => {
+    if (!wo || !selectedOpId || cantidadIngreso <= 0) {
+      return toast.error("Por favor completa todos los campos");
     }
-    // Aquí irá la mutación mañana
-    toast.success(`Ingreso registrado: ${cantidadIngreso} piezas al almacén.`);
-    setSearchTerm("");
+
+    try {
+      await registrarEntrada({
+        variables: {
+          woId: wo.id,
+          opId: selectedOpId,
+          cant: cantidadIngreso,
+        },
+        refetchQueries: [
+          { query: GET_WO_DETALLE, variables: { plano: searchTerm } },
+        ],
+      });
+
+      toast.success(
+        `Ingreso de ${cantidadIngreso} piezas registrado correctamente`,
+      );
+      setCantidadIngreso(1);
+    } catch (error: any) {
+      toast.error("Error al registrar: " + error.message);
+    }
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6">
-      <header className="flex items-center gap-3">
-        <Warehouse className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Entrada de Almacén
+    <div className="p-6 max-w-5xl mx-auto space-y-8">
+      {/* Header */}
+      <header className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-600 rounded-lg text-white">
+            <Warehouse className="h-6 w-6" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Gestión de Almacén
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Registra el ingreso físico de piezas terminadas
-          </p>
         </div>
+        <p className="text-muted-foreground">
+          Registra la entrada física de piezas terminadas desde producción.
+        </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Buscador */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-sm">Buscar Orden</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSearch} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="plano">Número de Plano / WO</Label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="plano"
-                    placeholder="Ej. PL-8823"
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Columna Izquierda: Buscador */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Buscador</CardTitle>
+              <CardDescription>Ingresa el número de plano</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSearch} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="plano">Número de Plano</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="plano"
+                      placeholder="Ej: PL-24001..."
+                      className="pl-9"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Buscando..." : "Buscar"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Buscando..." : "Buscar Work Order"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-        {/* Panel de Detalles e Ingreso */}
-        <Card className="md:col-span-2">
-          {wo ? (
+          {wo && wo.operaciones && wo.operaciones.length > 0 && (
+            <Card className="border-blue-100 bg-blue-50/30">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <ListFilter className="h-4 w-4" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider">
+                    Seleccionar Operación
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Select value={selectedOpId} onValueChange={setSelectedOpId}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Elige la orden de trabajo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* El operador ?? [] asegura que si operaciones es undefined, use un arreglo vacío */}
+                    {(wo?.operaciones ?? []).map((o: any) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.operacion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Columna Derecha: Detalles e Ingreso */}
+        <Card className="md:col-span-2 overflow-hidden shadow-md">
+          {operacionSeleccionada ? (
             <>
-              <CardHeader>
-                <div className="flex justify-between items-start">
+              <CardHeader className="bg-slate-50 border-b">
+                <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-xl">{wo.plano}</CardTitle>
-                    <CardDescription>
-                      {wo.proyecto?.proyecto || "Sin Proyecto"}
+                    <CardTitle className="text-xl">
+                      Plano: {wo?.plano}
+                    </CardTitle>
+                    <CardDescription className="font-medium text-blue-600">
+                      Proyecto: {wo?.proyecto?.proyecto || "N/A"}
                     </CardDescription>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                  >
-                    <CheckCircle2 className="mr-1 h-3 w-3" />
-                    Orden Activa
+                  <Badge variant="outline" className="text-lg px-4 py-1">
+                    OP: {operacionSeleccionada.operacion}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Comparativa de Cantidades */}
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="p-3 bg-neutral-50 rounded-lg border">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">
+
+              <CardContent className="pt-6 space-y-8">
+                {/* Resumen de cantidades */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border bg-slate-50 text-center">
+                    <p className="text-xs text-muted-foreground uppercase font-bold">
                       Requeridas
                     </p>
-                    <p className="text-2xl font-black">{wo.cantidad}</p>
+                    <p className="text-2xl font-black">{wo?.cantidad}</p>
                   </div>
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <p className="text-[10px] uppercase font-bold text-blue-600">
+                  <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50 text-center">
+                    <p className="text-xs text-emerald-600 uppercase font-bold">
                       Procesadas
                     </p>
-                    <p className="text-2xl font-black text-blue-700">
+                    <p className="text-2xl font-black text-emerald-700">
                       {piezasListas}
                     </p>
                   </div>
-                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                    <p className="text-[10px] uppercase font-bold text-amber-600">
+                  <div className="p-4 rounded-xl border border-blue-100 bg-blue-50 text-center">
+                    <p className="text-xs text-blue-600 uppercase font-bold">
                       En Almacén
                     </p>
-                    <p className="text-2xl font-black text-amber-700">0</p>
+                    <p className="text-2xl font-black text-blue-700">
+                      {operacionSeleccionada.totalAlmacen}
+                    </p>
                   </div>
                 </div>
 
@@ -200,64 +304,57 @@ export default function AlmacenPage() {
                 {/* Formulario de Ingreso */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <PackageCheck className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Registrar Entrada</h3>
+                    <PackageCheck className="h-5 w-5 text-blue-600" />
+                    <h3 className="font-bold">Registrar Ingreso Físico</h3>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Cantidad a ingresar</Label>
+                  <div className="flex items-end gap-4">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="cantidad">
+                        Cantidad de piezas que entran
+                      </Label>
                       <Input
+                        id="cantidad"
                         type="number"
+                        min="1"
                         value={cantidadIngreso}
                         onChange={(e) =>
-                          setCantidadIngreso(parseInt(e.target.value))
+                          setCantidadIngreso(parseInt(e.target.value) || 0)
                         }
-                        max={piezasListas}
-                        min={1}
                       />
                     </div>
-                    <div className="flex items-end">
-                      <Button
-                        onClick={handleRegistrarIngreso}
-                        className="w-full gap-2"
-                      >
-                        Confirmar Ingreso
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleRegistrarIngreso}
+                      className="bg-blue-600 hover:bg-blue-700 h-10 px-8"
+                      disabled={sending}
+                    >
+                      {sending ? "Registrando..." : "Confirmar Ingreso"}
+                    </Button>
                   </div>
+
                   {cantidadIngreso > piezasListas && (
-                    <p className="text-xs text-rose-500 font-medium">
-                      ⚠️ Atención: Estás ingresando más piezas de las
-                      registradas en producción ({piezasListas}).
+                    <p className="text-xs text-rose-500 font-medium bg-rose-50 p-2 rounded border border-rose-100 italic">
+                      ⚠️ Atención: La cantidad física ({cantidadIngreso}) supera
+                      lo registrado en la última etapa de producción (
+                      {piezasListas}).
                     </p>
                   )}
                 </div>
               </CardContent>
             </>
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
-              <History className="h-12 w-12 mb-4 opacity-20" />
-              <p>Busca una Work Order para registrar movimientos</p>
+            <div className="h-[400px] flex flex-col items-center justify-center text-muted-foreground bg-slate-50/50">
+              <History className="h-16 w-16 mb-4 opacity-10" />
+              <p className="font-medium text-lg">
+                Busca un plano para ver sus operaciones
+              </p>
+              <p className="text-sm opacity-70">
+                Los datos de producción aparecerán aquí
+              </p>
             </div>
           )}
         </Card>
       </div>
-
-      {/* Informativo de Flujo */}
-      <footer className="rounded-xl border bg-slate-50 p-4 text-xs text-slate-500 flex items-center gap-4">
-        <div className="flex items-center gap-1">
-          <Badge variant="secondary">1</Badge> Producción termina piezas
-        </div>
-        <ArrowRightLeft className="h-4 w-4" />
-        <div className="flex items-center gap-1">
-          <Badge variant="secondary">2</Badge> Almacén valida cantidad física
-        </div>
-        <ArrowRightLeft className="h-4 w-4" />
-        <div className="flex items-center gap-1">
-          <Badge variant="secondary">3</Badge> Se actualiza inventario
-        </div>
-      </footer>
     </div>
   );
 }
