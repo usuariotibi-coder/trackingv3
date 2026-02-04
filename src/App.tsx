@@ -13,6 +13,7 @@ import ImpactoPage from "./seguimiento/principal";
 import NewEntryPage from "./seguimiento/newentries";
 import LoginPage from "./seguimiento/login";
 import LavorPage from "./seguimiento/dashboard/lavor";
+import AlmacenPage from "./seguimiento/almacen/almacen";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/newentries" element={<NewEntryPage />} />
         <Route path="/lavor" element={<LavorPage />} />
+        <Route path="/almacen" element={<AlmacenPage />} />
         <Route path="*" element={<div className="p-6">404</div>} />
       </Routes>
       <Toaster position="bottom-right" richColors />

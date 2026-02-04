@@ -12,6 +12,7 @@ const links = [
   { href: "/escaneo", label: "Escaneo" },
   { href: "/machines", label: "Dashboard" },
   { href: "/login", label: "New" },
+  { href: "/almacen", label: "Almacen" },
 ];
 
 export default function AppNav() {
