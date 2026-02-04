@@ -122,9 +122,9 @@ export function TableExistencias({ onSelectAction }: TableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Buscador interno de la tabla */}
-      <div className="relative max-w-sm">
-        <div className="relative w-full max-w-sm">
+      <div className="flex w-full items-center justify-between mt-2">
+        {/* Contenedor del Buscador */}
+        <div className="relative w-1/4">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Filtrar por plano o proyecto..."
@@ -134,11 +134,11 @@ export function TableExistencias({ onSelectAction }: TableProps) {
           />
         </div>
 
-        {/* BOTÓN DE EXPORTAR */}
+        {/* Contenedor del Botón alineado a la derecha */}
         <Button
           variant="outline"
           onClick={exportToExcel}
-          className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 mt-5"
+          className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
           disabled={rows.length === 0}
         >
           <Download className="h-4 w-4" />
