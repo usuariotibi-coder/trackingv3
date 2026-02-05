@@ -155,7 +155,6 @@ const UPDATE_TIEMPO_SETUP = gql`
     updateTiempoSetup(procesoOpId: $procesoOpId, tiempoSetup: $tiempoSetup) {
       id
       tiempoSetup
-      estado
     }
   }
 `;

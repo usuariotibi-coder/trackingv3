@@ -892,12 +892,12 @@ function HojaImpresion({
                 <td className="py-2 pr-4">_______________________________</td>
               </tr>
             ))}
-            <tr>
+            <tr className="border-t">
               <td className="py-2 pr-4 font-medium" colSpan={2}>
                 Total estimado
               </td>
               <td className="py-2 pr-4 font-medium">{totalMin}</td>
-              <td className="py-2 pr-4" />
+              <td className="py-2 pr-4"></td>
             </tr>
           </tbody>
         </table>

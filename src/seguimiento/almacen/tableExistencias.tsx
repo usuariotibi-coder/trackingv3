@@ -152,7 +152,7 @@ export function TableExistencias({ onSelectAction }: TableProps) {
             <TableRow>
               <TableHead>Plano / Proyecto</TableHead>
               <TableHead className="text-center">Stock Físico</TableHead>
-              <TableHead className="text-right">Acción</TableHead>
+              <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -167,7 +167,7 @@ export function TableExistencias({ onSelectAction }: TableProps) {
                 <TableCell className="text-center font-bold text-blue-600">
                   {op.stockActual}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-center">
                   <Button
                     variant="ghost"
                     size="sm"
