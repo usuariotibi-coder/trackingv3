@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-
 import {
   Card,
   CardHeader,
@@ -71,7 +70,7 @@ export default function EstacionMaquinado() {
       };
       if (!body.op) {
         toast.error(
-          "Falta el número de operación (OP). Escanea el QR o escribe la OP manual."
+          "Falta el número de operación (OP). Escanea el QR o escribe la OP manual.",
         );
         return;
       }

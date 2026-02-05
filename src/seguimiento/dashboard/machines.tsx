@@ -140,23 +140,26 @@ function transformDataToMachines(data: ProcesosOpQueryResult): Machine[] {
 
   const activeStatuses = ["in_progress", "paused"];
   return data.procesosOperacion
-    .filter((item) => activeStatuses.includes(item.estado.toLowerCase()))
+    .filter(
+      (item) => item && activeStatuses.includes(item.estado?.toLowerCase()),
+    )
     .map((item) => {
-      // Usamos el operador ternario para manejar la potencial nulidad de usuario/proceso
-      const operatorName = item.usuario ? item.usuario.nombre : null;
-      const pieceName = item.proceso ? item.proceso.nombre : null;
+      // Verificación de nulidad para evitar el error de 'nombre'
+      const machineName = item.maquina?.nombre || "Máquina no asignada"; //
+      const operatorName = item.usuario?.nombre || null; //
+      const pieceName = item.proceso?.nombre || null; //
 
-      const status = mapStatus(item.estado);
+      const status = mapStatus(item.estado || "idle");
 
       return {
         id: item.id,
-        name: item.maquina.nombre,
+        name: machineName, // Ahora es seguro acceder
         piece: pieceName,
         operator: operatorName,
         status: status,
-        startedAt: (item as any).horaInicio || null,
+        startedAt: item.horaInicio || null,
         cycleTargetMin: item.tiempoEstimado,
-        operationId: item.operacion.operacion,
+        operationId: item.operacion?.operacion || "S/N", // Protección para operacion
       };
     });
 }
@@ -201,7 +204,7 @@ export default function MaquinasDashboard() {
 
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MachineStatus>(
-    "all" // Cambiado el filtro inicial a 'running' ya que solo cargamos estos
+    "all", // Cambiado el filtro inicial a 'running' ya que solo cargamos estos
   );
   const [tick, setTick] = useState(0); // para re-renderizar el elapsed cada 30s
 

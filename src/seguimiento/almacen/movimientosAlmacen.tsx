@@ -164,8 +164,8 @@ export function FormularioMovimiento({
   }, [planoInicial]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2 h-[90%]">
+      <Card className="h-full">
         <CardHeader>
           <CardTitle className="text-sm">Identificar Plano</CardTitle>
         </CardHeader>
@@ -203,7 +203,7 @@ export function FormularioMovimiento({
         </CardContent>
       </Card>
 
-      <Card className="md:col-span-2 border-none shadow-none bg-transparent">
+      <Card className="md:col-span-2 border-none shadow-none bg-transparent p-0">
         {opSel ? (
           <CardContent className="pt-0 space-y-6">
             {/* Visualizador de Stock con estilo de Kpi */}
@@ -268,7 +268,7 @@ export function FormularioMovimiento({
                     <Input
                       id="cantidad"
                       type="number"
-                      className="h-12 text-3xl font-bold text-center rounded-xl border-2 focus-visible:ring-offset-2"
+                      className="h-10 text-3xl font-bold text-center rounded-xl border-2 focus-visible:ring-offset-2"
                       value={cantidad}
                       onChange={(e) =>
                         setCantidad(parseInt(e.target.value) || 0)
@@ -287,7 +287,7 @@ export function FormularioMovimiento({
 
                 <Button
                   className={cn(
-                    "w-full h-11 text-lg font-bold shadow-lg transition-all active:scale-95",
+                    "w-full h-10 text-lg font-bold shadow-lg transition-all active:scale-95",
                     tipo === "INGRESO"
                       ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
                       : "bg-rose-600 hover:bg-rose-700 shadow-rose-200",
@@ -303,7 +303,7 @@ export function FormularioMovimiento({
             </div>
           </CardContent>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-slate-50/50 border-2 border-dashed rounded-2xl m-6">
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-slate-50/50 border-2 border-dashed rounded-2xl">
             <Package className="h-12 w-12 mb-4 opacity-20" />
             <p className="font-medium italic">
               Selecciona una operación para continuar
