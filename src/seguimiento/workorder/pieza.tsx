@@ -21,7 +21,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, Clock, Circle, XCircle } from "lucide-react"; // Importar XCircle para 'scrap'
+import {
+  CheckCircle2,
+  Clock,
+  Circle,
+  XCircle,
+  FileText,
+  Download,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 // ---------- Tipos ----------
 
@@ -51,6 +60,7 @@ interface OperacionQueryResult {
     operacion: string;
     workorder: {
       plano: string;
+      archivo: string;
       categoria: string;
       cantidad: number;
       proyecto: {
@@ -93,6 +103,7 @@ export default function PiezaDashboard() {
         operacion
         workorder {
           plano
+          archivo
           categoria
           cantidad
           proyecto {
@@ -152,7 +163,7 @@ export default function PiezaDashboard() {
   const totals = useMemo(() => {
     const DONECount = displayProcesos.filter((p) => p.estado === "done").length;
     const inProgressCount = displayProcesos.filter(
-      (p) => p.estado === "in_progress"
+      (p) => p.estado === "in_progress",
     ).length;
     const totalSteps = displayProcesos.length;
 
@@ -293,6 +304,35 @@ export default function PiezaDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Tiempo acumulado</span>
               <span className="font-medium">{totals.spentMinutes} min</span>
+            </div>
+            <div className="space-y-2 pt-2">
+              <Label className="text-muted-foreground">Documentación</Label>
+              {operacion.workorder.archivo ? (
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-between"
+                  asChild
+                >
+                  <a
+                    href={`https://tracking00-production-142e.up.railway.app/media/${operacion.workorder.archivo}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className="truncate max-w-[150px]">
+                        Ver Plano PDF
+                      </span>
+                    </div>
+                    <Download className="h-4 w-4 opacity-50" />
+                  </a>
+                </Button>
+              ) : (
+                <p className="text-xs text-center text-muted-foreground italic">
+                  Sin archivo adjunto
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
