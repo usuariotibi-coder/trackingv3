@@ -334,6 +334,7 @@ export default function ScanStation() {
               <Label className="mb-1">Número de Empleado</Label>
               <Input
                 ref={empInputRef}
+                type="password"
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
                 placeholder="Scan carnet..."
