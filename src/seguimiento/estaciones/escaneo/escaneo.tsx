@@ -283,7 +283,7 @@ export default function ScanStation() {
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-semibold tracking-tight">
           Estación de escaneo: {dataE?.usuario?.proceso?.nombre || "---"}
         </h1>
         {procesoEspecifico?.estado === "in_progress" && (

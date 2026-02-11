@@ -147,6 +147,13 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDuration(totalMinutes: number): string {
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
 export default function LavorPage() {
   const { data: usersData } = useQuery<GetUsuariosData>(GET_USUARIOS);
   const [currentSelectedNumero, setCurrentSelectedNumero] =
@@ -157,7 +164,7 @@ export default function LavorPage() {
   const { employees, defaultNumero } = useMemo(() => {
     if (usersData?.usuarios) {
       const validUsers = usersData.usuarios.filter(
-        (emp) => emp.numero && emp.numero !== ""
+        (emp) => emp.numero && emp.numero !== "",
       );
       return {
         employees: validUsers,
@@ -200,7 +207,7 @@ export default function LavorPage() {
         const start = new Date(proc.horaInicio!);
         const end = proc.horaFin ? new Date(proc.horaFin) : new Date();
         const minutes = Math.round(
-          proc.tiempoRealCalculado ?? diffMinutes(start, end)
+          proc.tiempoRealCalculado ?? diffMinutes(start, end),
         );
 
         if (minutes > 0) {
@@ -234,7 +241,7 @@ export default function LavorPage() {
       minutos: Math.round(mins),
     }));
     intervals.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
     );
     return { intervals, totalWorkMin, totalEstMin, chartData };
   }, [allProcesos]);
@@ -242,7 +249,7 @@ export default function LavorPage() {
   const filteredIntervals = useMemo(() => {
     if (projectFilter === "ALL_PROJECTS") return timelineData.intervals;
     return timelineData.intervals.filter(
-      (itv) => itv.proyecto === projectFilter
+      (itv) => itv.proyecto === projectFilter,
     );
   }, [timelineData.intervals, projectFilter]);
 
@@ -290,8 +297,8 @@ export default function LavorPage() {
       "download",
       `Reporte_${selectedEmployeeNumero}_${format(
         date || new Date(),
-        "yyyy-MM-dd"
-      )}.csv`
+        "yyyy-MM-dd",
+      )}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -308,7 +315,7 @@ export default function LavorPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight">
               Seguimiento por Operador
             </h1>
             <p className="text-sm text-neutral-500">
@@ -366,8 +373,13 @@ export default function LavorPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <SummaryChip
+                  label="Estimado"
+                  value={formatDuration(timelineData.totalEstMin)}
+                  muted
+                />
+                <SummaryChip
                   label="Trabajado"
-                  value={`${timelineData.totalWorkMin}m`}
+                  value={formatDuration(timelineData.totalWorkMin)}
                   highlight
                 />
                 <SummaryChip
@@ -376,12 +388,7 @@ export default function LavorPage() {
                   warn={eficienciaGlobal < 85}
                 />
                 <SummaryChip
-                  label="Estimado"
-                  value={`${timelineData.totalEstMin}m`}
-                  muted
-                />
-                <SummaryChip
-                  label="Procesos"
+                  label="WO procesadas"
                   value={timelineData.intervals.length.toString()}
                 />
               </div>
@@ -435,7 +442,7 @@ export default function LavorPage() {
                 <SelectContent>
                   <SelectItem value="ALL_PROJECTS">Todos</SelectItem>
                   {Array.from(
-                    new Set(timelineData.intervals.map((i) => i.proyecto))
+                    new Set(timelineData.intervals.map((i) => i.proyecto)),
                   ).map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
@@ -476,18 +483,18 @@ export default function LavorPage() {
                         ? "En curso"
                         : formatTime(new Date(itv.end))}
                     </TableCell>
-                    <TableCell className="text-center text-neutral-400">
-                      {itv.tiempoEstimado}m
+                    <TableCell className="text-center text-neutral-400 text-xs">
+                      {formatDuration(itv.tiempoEstimado)}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "text-center font-bold",
+                        "text-center font-bold text-xs",
                         itv.minutes > itv.tiempoEstimado
                           ? "text-red-500"
-                          : "text-emerald-500"
+                          : "text-emerald-500",
                       )}
                     >
-                      {itv.minutes}m
+                      {formatDuration(itv.minutes)}
                     </TableCell>
                     <TableCell className="text-center text-sm">
                       {itv.operacion}
@@ -510,7 +517,7 @@ function SummaryChip({ label, value, highlight, warn, muted }: any) {
         "rounded-xl border p-3",
         highlight && "bg-blue-50 border-blue-200",
         warn && "bg-red-50 border-red-200",
-        muted && "bg-neutral-50"
+        muted && "bg-neutral-50",
       )}
     >
       <div className="text-[10px] uppercase font-bold opacity-70">{label}</div>

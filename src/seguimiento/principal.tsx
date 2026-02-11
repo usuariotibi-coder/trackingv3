@@ -1,162 +1,11 @@
 import { useMemo, useState, useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-
-/* ---------- Gráfico de flujo animado (SVG puro, sin libs) ---------- */
-function FlowImpactChart() {
-  // Etapas
-  const stages = [
-    "Planeación",
-    "Corte",
-    "Escuadre",
-    "CNC",
-    "Calidad",
-    "Almacén",
-  ] as const;
-  const volumes = [100, 86, 78, 74, 70]; // grosor relativo entre etapas
-
-  // Geometría
-  const { width, height, paddingX, paths } = useMemo(() => {
-    const width = 1100;
-    const height = 320;
-    const paddingX = 80;
-    const yTop = 110;
-    const yBottom = 210;
-    const gapX = (width - paddingX * 2) / (stages.length - 1);
-
-    const paths = stages.slice(0, -1).map((_, i) => {
-      const x1 = paddingX + gapX * i;
-      const x2 = paddingX + gapX * (i + 1);
-      const y1 = i % 2 === 0 ? yTop : yBottom;
-      const y2 = (i + 1) % 2 === 0 ? yTop : yBottom;
-      const dx = (x2 - x1) * 0.55;
-      const d = `M ${x1},${y1} C ${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
-      return { id: `link-${i}`, d, x1, y1, x2, y2 };
-    });
-
-    return { width, height, paddingX, yTop, yBottom, paths };
-  }, []);
-
-  const thickness = (v: number) => 4 + (v / Math.max(...volumes)) * 16;
-
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="mx-auto block h-[320px] w-full"
-        role="img"
-        aria-label="Flujo de manufactura con grosor por volumen y partículas animadas"
-      >
-        <defs>
-          {/* Camino lila muy tenue */}
-          <linearGradient id="grad-flow" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(270 80% 75%)" stopOpacity="0.15" />
-            <stop
-              offset="50%"
-              stopColor="hsl(270 80% 80%)"
-              stopOpacity="0.15"
-            />
-            <stop
-              offset="100%"
-              stopColor="hsl(270 80% 85%)"
-              stopOpacity="0.15"
-            />
-          </linearGradient>
-
-          <filter id="soft-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        <text
-          x={16}
-          y={28}
-          className="fill-neutral-500 dark:fill-neutral-400"
-          fontSize="12"
-          letterSpacing="0.08em"
-        >
-          Flujo de trabajo
-        </text>
-
-        {paths.map((p, i) => {
-          const particleColors = [
-            "#22c55e",
-            "#facc15",
-            "#ef4444",
-            "#facc15",
-            "#22c55e",
-          ];
-          const color = particleColors[i % particleColors.length];
-
-          return (
-            <g key={p.id}>
-              <path
-                id={p.id}
-                d={p.d}
-                fill="none"
-                stroke="url(#grad-flow)"
-                strokeWidth={thickness(volumes[i])}
-                strokeLinecap="round"
-                className="opacity-50"
-                filter="url(#soft-glow)"
-              />
-              <circle r="6" fill={color} opacity="0.92">
-                <animateMotion
-                  dur={`${6 + i}s`}
-                  repeatCount="indefinite"
-                  rotate="auto"
-                >
-                  <mpath href={`#${p.id}`} />
-                </animateMotion>
-              </circle>
-            </g>
-          );
-        })}
-
-        {stages.map((name, i) => {
-          const x =
-            i === 0
-              ? paddingX
-              : i === stages.length - 1
-                ? width - paddingX
-                : (paths[i - 1].x2 + (paths[i]?.x1 ?? paths[i - 1].x2)) / 2;
-          const y = i % 2 === 0 ? 80 : 250;
-
-          return (
-            <g
-              key={name}
-              transform={`translate(${x}, ${y})`}
-              className="text-neutral-600 dark:text-neutral-300"
-            >
-              <circle r={12} fill="currentColor" opacity="0.15" />
-              <text
-                textAnchor="middle"
-                dy="0.35em"
-                className="fill-current"
-                fontSize="12"
-              >
-                {name}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 /* ---------- Tipos de Datos ---------- */
 
@@ -166,37 +15,35 @@ type OperacionesQueryResult = {
       id: string;
       proyecto: string;
     };
+    workorder: {
+      cantidad: number;
+    };
     procesos: Array<{
+      id: string;
       estado: string;
+      conteoActual: number;
       proceso: { nombre: string };
-      horaInicio?: string | null;
-      tiempoEstimado?: number | null;
+      tiempoEstimado: number | null;
+      tiempoRealCalculado: number | null;
     }>;
   }>;
 };
 
 export default function ImpactoPage() {
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-neutral-100 via-white to-neutral-200 px-6 py-12 text-neutral-900 dark:from-black dark:via-neutral-950 dark:to-neutral-900 dark:text-neutral-100 lg:px-12">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Seguimiento en tiempo real
+    <div className="min-h-screen w-full bg-neutral-50 px-6 py-12 text-neutral-900 dark:bg-black dark:text-neutral-100 lg:px-12">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <header className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Seguimiento de Proyectos
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Cada proceso se muestra en su flujo actual
+          <p className="text-sm text-muted-foreground">
+            Visualización en tiempo real de avance y métricas de tiempo por
+            proyecto.
           </p>
         </header>
 
-        {/* ===== Flujo animado ===== */}
-        <section className="relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
-          <FlowImpactChart />
-        </section>
-
-        <section className="rounded-3xl border border-neutral-200/70 bg-white/70 p-6 shadow-lg backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/60">
-          <h2 className="mb-4 text-xl font-semibold tracking-tight">
-            Avance por proyecto
-          </h2>
+        <section className="space-y-6">
           <ProjectProgress />
         </section>
       </div>
@@ -207,7 +54,7 @@ export default function ImpactoPage() {
 export function ProjectProgress() {
   const [tick, setTick] = useState(0);
 
-  // Forzar re-renderizado cada minuto para actualizar cronómetros
+  // Forzar actualización cada minuto para datos de tiempo real
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(timer);
@@ -232,8 +79,8 @@ export function ProjectProgress() {
           proceso {
             nombre
           }
-          horaInicio
           tiempoEstimado
+          tiempoRealCalculado
         }
       }
     }
@@ -253,8 +100,10 @@ export function ProjectProgress() {
           nombre: op.proyecto.proyecto,
           totalMeta: 0,
           totalActual: 0,
+          totalEstimado: 0,
+          totalReal: 0,
           tieneCuelloBotella: false,
-          detalleProcesos: {}, // Agruparemos procesos similares de distintas operaciones
+          detalleProcesos: {},
         };
       }
 
@@ -264,20 +113,32 @@ export function ProjectProgress() {
       op.procesos.forEach((p: any, idx: number) => {
         acc[projectId].totalActual += p.conteoActual;
 
-        // Lógica de alerta: si hay estancamiento entre pasos
+        // Sumatoria de tiempos global por proyecto
+        acc[projectId].totalEstimado += p.tiempoEstimado || 0;
+        acc[projectId].totalReal += p.tiempoRealCalculado || 0;
+
+        // Lógica de alerta
         const piezasAnteriores =
           idx > 0 ? op.procesos[idx - 1].conteoActual : cantidadWO;
         if (piezasAnteriores - p.conteoActual > 5) {
           acc[projectId].tieneCuelloBotella = true;
         }
 
-        // Consolidar procesos por nombre para el resumen
         const nombreProc = p.proceso.nombre;
         if (!acc[projectId].detalleProcesos[nombreProc]) {
-          acc[projectId].detalleProcesos[nombreProc] = { actual: 0, meta: 0 };
+          acc[projectId].detalleProcesos[nombreProc] = {
+            actual: 0,
+            meta: 0,
+            estimado: 0,
+            real: 0,
+          };
         }
         acc[projectId].detalleProcesos[nombreProc].actual += p.conteoActual;
         acc[projectId].detalleProcesos[nombreProc].meta += cantidadWO;
+        acc[projectId].detalleProcesos[nombreProc].estimado +=
+          p.tiempoEstimado || 0;
+        acc[projectId].detalleProcesos[nombreProc].real +=
+          p.tiempoRealCalculado || 0;
       });
 
       return acc;
@@ -295,100 +156,155 @@ export function ProjectProgress() {
         id,
         proyecto: stats.nombre,
         pct,
+        totalEstimado: Math.round(stats.totalEstimado),
+        totalReal: Math.round(stats.totalReal),
         tieneCuelloBotella: stats.tieneCuelloBotella,
         procesos: stats.detalleProcesos,
         color:
           pct >= 100
             ? "bg-emerald-500"
             : pct >= 50
-              ? "bg-blue-500"
-              : "bg-amber-500",
+              ? "bg-blue-600"
+              : "bg-orange-500",
       };
     });
   }, [data, tick]);
 
   if (loading)
     return (
-      <p className="text-center py-4 text-sm animate-pulse">
-        Cargando avance de producción...
-      </p>
+      <p className="text-center py-10 animate-pulse">Cargando avance...</p>
     );
   if (error)
     return (
-      <p className="text-center py-4 text-rose-500 text-sm italic">
-        Error: {error.message}
-      </p>
+      <p className="text-center py-10 text-red-500">Error: {error.message}</p>
     );
 
   return (
-    <Accordion type="single" collapsible className="w-full space-y-4">
+    <div className="grid grid-cols-1 gap-6">
       {rows.map((r) => (
-        <AccordionItem
+        <Card
           key={r.id}
-          value={r.id}
           className={cn(
-            "rounded-xl border px-4 shadow-sm transition-all",
-            r.tieneCuelloBotella
-              ? "border-amber-200 bg-amber-50/20 dark:border-amber-900/40"
-              : "border-neutral-200 bg-white/50 dark:border-neutral-800",
+            "overflow-hidden border-l-4 shadow-sm transition-all duration-300 hover:shadow-md",
+            r.tieneCuelloBotella ? "border-l-orange-500" : "border-l-blue-600",
           )}
         >
-          <AccordionTrigger className="hover:no-underline py-5">
-            <div className="flex flex-col w-full pr-4 text-left">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold uppercase tracking-tight">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-xl font-bold uppercase">
                     {r.proyecto}
-                  </span>
+                  </CardTitle>
                   {r.tieneCuelloBotella && (
-                    <Badge className="bg-amber-500 text-black text-[9px] font-bold animate-pulse">
-                      RETRASO
+                    <Badge
+                      variant="destructive"
+                      className="animate-pulse gap-1 text-[10px]"
+                    >
+                      <AlertTriangle className="h-3 w-3" /> CUELLO DE BOTELLA
                     </Badge>
                   )}
                   {r.pct === 100 && (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                   )}
                 </div>
-                <span className="font-mono text-sm font-bold">{r.pct}%</span>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-500" />
+                    <span>
+                      Est: <b>{r.totalEstimado}m</b>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-orange-500" />
+                    <span>
+                      Real: <b>{r.totalReal}m</b>
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-                <div
-                  className={cn("h-full transition-all duration-1000", r.color)}
-                  style={{ width: `${r.pct}%` }}
-                />
+
+              <div className="flex items-center gap-4 min-w-[200px]">
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span>Progreso</span>
+                    <span>{r.pct}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-700",
+                        r.color,
+                      )}
+                      style={{ width: `${r.pct}%` }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </AccordionTrigger>
+          </CardHeader>
 
-          <AccordionContent className="pb-6 border-t border-neutral-100 dark:border-neutral-800 mt-2 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Separator />
+
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Object.entries(r.procesos).map(
-                ([nombre, stat]: [string, any]) => (
-                  <div
-                    key={nombre}
-                    className="flex items-center justify-between p-2 rounded-lg bg-neutral-100/50 dark:bg-neutral-900/50 border border-neutral-200/50 dark:border-neutral-800"
-                  >
-                    <span className="text-xs font-medium">{nombre}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-neutral-500">
-                        {stat.actual} / {stat.meta}
-                      </span>
-                      <div className="w-12 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-neutral-400"
-                          style={{
-                            width: `${(stat.actual / stat.meta) * 100}%`,
-                          }}
-                        />
+                ([nombre, stat]: [string, any]) => {
+                  const procPct = Math.round((stat.actual / stat.meta) * 100);
+                  return (
+                    <div
+                      key={nombre}
+                      className="relative p-3 rounded-xl border border-neutral-100 bg-white/50 dark:bg-neutral-900/40 dark:border-neutral-800"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[11px] font-bold uppercase text-neutral-500 tracking-wider">
+                          {nombre}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                          {stat.actual}/{stat.meta}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {/* Barra de progreso miniatura */}
+                        <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500/70"
+                            style={{ width: `${procPct}%` }}
+                          />
+                        </div>
+
+                        {/* Tiempos del proceso */}
+                        <div className="flex justify-between items-center text-[10px] text-muted-foreground border-t pt-2 dark:border-neutral-800">
+                          <div className="flex flex-col">
+                            <span>Estimado</span>
+                            <span className="font-bold text-neutral-700 dark:text-neutral-300">
+                              {Math.round(stat.estimado)}m
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span>Tiempo Real</span>
+                            <span
+                              className={cn(
+                                "font-bold",
+                                stat.real > stat.estimado
+                                  ? "text-orange-600"
+                                  : "text-emerald-600",
+                              )}
+                            >
+                              {Math.round(stat.real)}m
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ),
+                  );
+                },
               )}
             </div>
-          </AccordionContent>
-        </AccordionItem>
+          </CardContent>
+        </Card>
       ))}
-    </Accordion>
+    </div>
   );
 }

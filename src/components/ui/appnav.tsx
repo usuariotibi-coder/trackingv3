@@ -9,6 +9,7 @@ const links = [
   { href: "/machines", label: "Maquinas" },
   { href: "/piezas", label: "WorkOrder" },
   { href: "/escaneo", label: "Escaneo" },
+  { href: "/areas", label: "Areas" },
   { href: "/lavor", label: "Labor" },
   { href: "/intake", label: "Planeación" },
   { href: "/almacen", label: "Almacen" },
