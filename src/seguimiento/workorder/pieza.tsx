@@ -40,6 +40,7 @@ type DisplayPaso = {
   minutos: number; // Tiempo Estimado
   estado: Estado;
   tiempoReal: number | null; // Usaremos el tiempo real calculado
+  tiempoSetup: number | null;
 };
 
 type Estado = "pending" | "in_progress" | "done" | "scrap" | "paused";
@@ -48,6 +49,7 @@ interface ProcesoOperacion {
   proceso: {
     nombre: string;
   };
+  tiempoSetup: number | null;
   tiempoEstimado: number | null;
   estado: Estado;
   tiempoRealCalculado: number | null; // Campo de GraphQL
@@ -111,6 +113,7 @@ export default function PiezaDashboard() {
           }
         }
         procesos {
+          tiempoSetup
           tiempoEstimado
           estado
           proceso {
@@ -148,8 +151,8 @@ export default function PiezaDashboard() {
       label: p.proceso.nombre,
       minutos: p.tiempoEstimado ? parseFloat(p.tiempoEstimado.toString()) : 0,
       estado: p.estado,
-      // Mapeamos el valor del query (tiempoRealCalculado) al campo local (tiempoReal)
       tiempoReal: p.tiempoRealCalculado || 0,
+      tiempoSetup: p.tiempoSetup || 0,
     }));
 
     // Lógica de ordenamiento:
@@ -417,36 +420,45 @@ export default function PiezaDashboard() {
                   <TableHead>Proceso</TableHead>
                   <TableHead className="text-center">Est. (min)</TableHead>
                   <TableHead className="text-center">Real (min)</TableHead>
-                  {/* Columna 'Estado' eliminada */}
+                  {/* Columna extra eliminada aquí */}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {displayProcesos.map((p, i) => (
                   <TableRow key={p.key}>
                     <TableCell className="text-center">{i + 1}</TableCell>
-                    <TableCell>{p.label}</TableCell>
-                    <TableCell className="text-center">{p.minutos}</TableCell>
-                    {/* MOSTRAR TIEMPO REAL CALCULADO */}
-                    <TableCell className="text-center">
-                      {p.tiempoReal !== null ? p.tiempoReal : "—"}
+                    <TableCell className="font-medium">{p.label}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">
+                      {p.minutos}
                     </TableCell>
-                    {/* Celda 'Estado' eliminada */}
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="font-medium">
+                          {p.tiempoReal !== null ? p.tiempoReal : "—"}
+                        </span>
+                        {/* Usamos una expresión ternaria para evitar nodos de texto vacíos que rompen el <tr> */}
+                        {(p.tiempoSetup ?? 0) > 0 ? (
+                          <span
+                            className="text-[10px] text-orange-500 font-medium leading-none mt-1"
+                            title="Tiempo de preparación (Setup)"
+                          >
+                            {p.tiempoSetup} setup
+                          </span>
+                        ) : null}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
+                {/* Fila de Total Global sin espacios en blanco adicionales */}
                 <TableRow className="border-t-2 border-primary/50 bg-neutral-50 dark:bg-neutral-900/50">
-                  {" "}
-                  {/* Línea de total destacada */}
                   <TableCell />
                   <TableCell className="font-semibold">Total Global</TableCell>
-                  {/* CELDAS MODIFICADAS: Aquí va el total estimado */}
                   <TableCell className="text-center font-semibold">
                     {totals.estimatedMinutes}
                   </TableCell>
-                  {/* Aquí va el total real acumulado */}
                   <TableCell className="text-center font-semibold">
                     {totals.spentMinutes}
                   </TableCell>
-                  {/* Celda extra eliminada */}
                 </TableRow>
               </TableBody>
             </Table>

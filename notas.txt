@@ -45,3 +45,24 @@ const REGISTRAR_ENTRADA = gql`
   }
 `;
 
+
+
+escaneo evitar ultimo
+
+home - proyectos y ocultar bolitas y sin acordeon, tiempo estimado, tiempo real, total por proyecto y por area
+
+maquinas
+redisenar seccion maquinas
+refetch- evitar el aviso de cargado de datos 
+objetivox = tiempo estimado
+cards por area
+
+
+labor 
+checar pausas
+wo procesadas = procesos
+tiempos en h y min
+estimado, trabajado, eficiencia y procesos
+
+labor por area
+

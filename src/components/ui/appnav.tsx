@@ -5,15 +5,14 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/lavor", label: "Labor" },
-  { href: "/intake", label: "Planeación" },
+  { href: "/", label: "Proyectos" },
+  { href: "/machines", label: "Maquinas" },
   { href: "/piezas", label: "WorkOrder" },
   { href: "/escaneo", label: "Escaneo" },
-  { href: "/projects", label: "Proyectos" },
-  { href: "/machines", label: "Maquinas" },
-  { href: "/login", label: "New" },
+  { href: "/lavor", label: "Labor" },
+  { href: "/intake", label: "Planeación" },
   { href: "/almacen", label: "Almacen" },
+  { href: "/administracion", label: "Administracion" },
 ];
 
 export default function AppNav() {

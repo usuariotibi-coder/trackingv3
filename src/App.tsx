@@ -1,6 +1,5 @@
 import "./App.css";
 import { Routes, Route, BrowserRouter } from "react-router-dom";
-import Home from "./home";
 import EstacionMaquinado from "./seguimiento/estaciones/maquinadocnc/maquinadocns";
 import IntakeDePlanos from "./seguimiento/planeacion/planeacion";
 import PiezaDashboard from "./seguimiento/workorder/pieza";
@@ -21,8 +20,7 @@ function App() {
     <BrowserRouter>
       <AppNav />
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/projects" element={<ImpactoPage />} />
+        <Route path="/" element={<ImpactoPage />} />
         <Route path="/maquinadocnc" element={<EstacionMaquinado />} />
         <Route path="/escaneo" element={<ScanStation />} />
         <Route path="/piezas" element={<PiezasDashboard />} />
@@ -34,7 +32,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/intake" element={<IntakeDePlanos />} />
           <Route path="/almacen" element={<GestionAlmacen />} />
-          <Route path="/newentries" element={<NewEntryPage />} />
+          <Route path="/administracion" element={<NewEntryPage />} />
         </Route>
 
         <Route path="*" element={<div className="p-6">404</div>} />
