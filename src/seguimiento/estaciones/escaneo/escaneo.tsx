@@ -159,6 +159,8 @@ export default function ScanStation() {
   >(undefined);
   const [tiempoTranscurrido, setTiempoTranscurrido] = useState("00:00:00");
 
+  const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+
   const woInputRef = useRef<HTMLInputElement>(null);
   const empInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,8 +188,6 @@ export default function ScanStation() {
     useMutation<RegistrarEscaneoRes>(REGISTRAR_ESCANEO);
 
   const [registrarObs] = useMutation(REGISTRAR_OBSERVACION);
-
-  const [showSetupModal, setShowSetupModal] = useState(false);
 
   useEffect(() => {
     let intervalo: ReturnType<typeof setInterval>;
@@ -218,11 +218,9 @@ export default function ScanStation() {
   const handleAction = async () => {
     if (!procesoEspecifico || !dataE?.usuario?.id) return;
 
-    // SI EL PROCESO ESTÁ EN PAUSA, EL BOTÓN REANUDA
     if (procesoEspecifico.estado === "paused") {
       try {
         await registrarObs({
-          // Esta es la que causaba el error
           variables: {
             id: procesoEspecifico.id,
             tipo: "PAUSA_FIN",
@@ -238,45 +236,19 @@ export default function ScanStation() {
       }
     }
 
-    const esProcesoCNC = procesoEspecifico.proceso.id === "3";
-    const esUltimaPieza =
-      procesoEspecifico.conteoActual >=
-      procesoEspecifico.operacion.workorder.cantidad;
+    await ejecutarRegistroEscaneo();
+  };
 
-    if (esProcesoCNC && esUltimaPieza) {
-      setShowSetupModal(true); // Disparamos el modal en lugar de registrar directo
-      return;
-    }
-
-    try {
-      const { data } = await registrarEscaneo({
-        variables: {
-          procesoOpId: procesoEspecifico.id,
-          usuarioId: dataE.usuario.id,
-          maquinaId: maquinaSeleccionadaId || null,
-        },
-      });
-      const res = data?.registrarEscaneoOperacion;
-      if (res?.estado === "done") toast.success("✅ Completado.");
-      else
-        toast.info(
-          `Avance: ${res?.conteoActual}/${res?.operacion.workorder.cantidad}`,
-        );
-
-      setWorkOrder("");
-      woInputRef.current?.focus();
-      refetchP();
-    } catch (e: any) {
-      toast.error(e.message);
-    }
+  const limpiarEstacion = () => {
+    setWorkOrder("");
+    setMaquinaSeleccionadaId(undefined);
+    woInputRef.current?.focus();
   };
 
   const ejecutarRegistroEscaneo = async () => {
     if (!procesoEspecifico || !dataE?.usuario?.id) return;
 
     try {
-      // Quitamos el "const { data } =" porque no necesitamos leer la respuesta aquí
-      // ya que el estado se actualiza con el refetchP() y los mensajes son genéricos
       const { data } = await registrarEscaneo({
         variables: {
           procesoOpId: procesoEspecifico.id,
@@ -288,22 +260,23 @@ export default function ScanStation() {
       const res = data?.registrarEscaneoOperacion;
 
       if (res?.estado === "done") {
-        toast.success("✅ Orden finalizada y cerrada.");
+        // Si el backend dice que terminó y es Programación (ID 3), abrimos el modal de Setup
+        if (procesoEspecifico.proceso.id === "3") {
+          setIsFinalizeModalOpen(true);
+        } else {
+          // Para cualquier otro proceso, éxito y limpieza inmediata
+          toast.success("✅ Orden finalizada.");
+          limpiarEstacion();
+        }
       } else {
         toast.info(
-          `Avance registrado: ${res?.conteoActual}/${res?.operacion.workorder.cantidad}`,
+          `Pieza ${res?.conteoActual}/${res?.operacion.workorder.cantidad} registrada.`,
         );
       }
 
-      // Limpieza de campos
-      setWorkOrder("");
-      setMaquinaSeleccionadaId(undefined); // Opcional: resetear máquina tras éxito
-      woInputRef.current?.focus();
-
-      // Sincronizar con el servidor
       refetchP();
     } catch (e: any) {
-      toast.error("Error al registrar: " + e.message);
+      toast.error(e.message);
     }
   };
 
@@ -380,13 +353,8 @@ export default function ScanStation() {
 
             <Button
               size="lg"
-              className={`w-full h-10 ${
-                procesoEspecifico?.estado === "done"
-                  ? "bg-green-600 hover:bg-green-600 text-white"
-                  : ""
-              }`}
+              className={`w-full h-10 ${procesoEspecifico?.estado === "done" ? "bg-green-600" : ""}`}
               onClick={handleAction}
-              // Bloqueamos el botón si no hay proceso O si ya está completado
               disabled={
                 !procesoEspecifico || procesoEspecifico.estado === "done"
               }
@@ -398,11 +366,11 @@ export default function ScanStation() {
                   : procesoEspecifico.estado === "paused"
                     ? "Reanudar Proceso"
                     : procesoEspecifico.estado === "done"
-                      ? "✅ Orden Finalizada"
-                      : procesoEspecifico.conteoActual <
+                      ? "Orden Finalizada"
+                      : procesoEspecifico.conteoActual + 1 >=
                           procesoEspecifico.operacion.workorder.cantidad
-                        ? `Registrar Pieza (${procesoEspecifico.conteoActual + 1}/${procesoEspecifico.operacion.workorder.cantidad})`
-                        : "Finalizar y Cerrar Orden"}
+                        ? "Finalizar Orden" // Texto especial para la última pieza
+                        : `Registrar Pieza (${procesoEspecifico.conteoActual + 1}/${procesoEspecifico.operacion.workorder.cantidad})`}
             </Button>
           </CardContent>
         </Card>
@@ -483,10 +451,12 @@ export default function ScanStation() {
           <AccionSetup
             procesoOpId={procesoEspecifico.id}
             workOrder={workOrder}
-            isOpen={showSetupModal}
-            setIsOpen={setShowSetupModal}
-            onSuccess={refetchP}
-            confirmFinalize={ejecutarRegistroEscaneo}
+            isOpen={isFinalizeModalOpen}
+            setIsOpen={setIsFinalizeModalOpen}
+            onSuccess={() => {
+              limpiarEstacion();
+              refetchP();
+            }}
           />
         )}
       </div>

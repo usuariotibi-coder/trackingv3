@@ -54,7 +54,6 @@ interface SetupTimeProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   onSuccess: () => void;
-  confirmFinalize: () => Promise<void>;
 }
 
 export function AccionSetup({
@@ -62,7 +61,6 @@ export function AccionSetup({
   isOpen,
   setIsOpen,
   onSuccess,
-  confirmFinalize,
 }: SetupTimeProps) {
   const [tiempo, setTiempo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -104,9 +102,6 @@ export function AccionSetup({
           tiempoSetup: valorSetup,
         },
       });
-
-      // 2. Finalizamos el proceso de PROGRAMACIÓN (ID 3)
-      await confirmFinalize();
 
       toast.success("✅ Setup asignado a Maquinado y Programación finalizada.");
       setIsOpen(false);
