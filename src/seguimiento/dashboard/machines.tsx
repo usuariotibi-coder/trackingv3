@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { gql, NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RefreshCw } from "lucide-react";
 
 // -------------------------------
-// 1. Tipos y Utilerías
+// Tipos y utilidades
 // -------------------------------
 type MachineStatus = "running" | "idle" | "maintenance" | "paused";
 
@@ -46,6 +47,12 @@ type GetProcesosOperacionQuery = {
   }>;
 };
 
+function minsSince(ts?: string | null) {
+  if (!ts) return 0;
+  const diffMs = Date.now() - new Date(ts).getTime();
+  return Math.max(0, Math.floor(diffMs / 60000));
+}
+
 function formatDuration(totalMinutes: number): string {
   const roundedMins = Math.round(totalMinutes);
   if (roundedMins < 60) return `${roundedMins}m`;
@@ -54,25 +61,20 @@ function formatDuration(totalMinutes: number): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-function minsSince(ts?: string | null) {
-  if (!ts) return 0;
-  const diffMs = Date.now() - new Date(ts).getTime();
-  return Math.max(0, Math.floor(diffMs / 60000));
-}
-
-function fmtElapsed(totalSeconds: number) {
-  const mins = Math.floor(totalSeconds / 60);
-  return formatDuration(mins);
-}
-
 function barPct(elapsed: number, target: number) {
   if (!target || target <= 0) return 0;
   return Math.min(100, Math.round((elapsed / target) * 100));
 }
 
-function mapStatus(serverStatus: string): MachineStatus {
-  const s = serverStatus.toLowerCase();
-  return s === "paused" ? "paused" : s === "in_progress" ? "running" : "idle";
+type TimingLevel = "on_time" | "over_25" | "over_50" | "over_50_plus";
+
+function getTimingLevel(elapsed: number, target: number): TimingLevel {
+  if (!target || target <= 0) return "on_time";
+  const ratio = elapsed / target;
+  if (ratio <= 1) return "on_time";
+  if (ratio <= 1.25) return "over_25";
+  if (ratio <= 1.5) return "over_50";
+  return "over_50_plus";
 }
 
 function statusColor(machine: Machine) {
@@ -81,43 +83,68 @@ function statusColor(machine: Machine) {
       bg: "bg-orange-50",
       border: "border-orange-200",
       dot: "bg-orange-500",
-      bar: "bg-orange-500",
       text: "text-orange-700",
+      bar: "bg-orange-500",
+    };
+  if (machine.status === "maintenance")
+    return {
+      bg: "bg-sky-50",
+      border: "border-sky-200",
+      dot: "bg-sky-500",
+      text: "text-sky-700",
+      bar: "bg-sky-500",
+    };
+  if (machine.status === "idle")
+    return {
+      bg: "bg-slate-50",
+      border: "border-slate-200",
+      dot: "bg-slate-400",
+      text: "text-slate-700",
+      bar: "bg-slate-500",
     };
 
+  // running -> thresholds por TEF
   const elapsed = minsSince(machine.startedAt);
   const X = machine.cycleTargetMin ?? 30;
-
-  if (elapsed > 2 * X)
+  const level = getTimingLevel(elapsed, X);
+  if (level === "over_50_plus")
+    return {
+      bg: "bg-rose-100",
+      border: "border-rose-300",
+      dot: "bg-rose-800",
+      text: "text-rose-800",
+      bar: "bg-rose-800",
+    };
+  if (level === "over_50")
     return {
       bg: "bg-red-50",
       border: "border-red-200",
       dot: "bg-red-500",
-      bar: "bg-red-500",
       text: "text-red-700",
+      bar: "bg-red-500",
     };
-  if (elapsed > X)
+  if (level === "over_25")
     return {
-      bg: "bg-yellow-50",
-      border: "border-yellow-200",
-      dot: "bg-yellow-500",
-      bar: "bg-yellow-500",
-      text: "text-yellow-700",
+      bg: "bg-amber-50",
+      border: "border-amber-200",
+      dot: "bg-amber-500",
+      text: "text-amber-700",
+      bar: "bg-amber-500",
     };
-
   return {
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     dot: "bg-emerald-500",
-    bar: "bg-emerald-500",
     text: "text-emerald-700",
+    bar: "bg-emerald-500",
   };
 }
 
 // -------------------------------
-// 2. Componente Principal
 // -------------------------------
-export default function MaquinasDashboard() {
+// Componente principal de página
+// -------------------------------
+export default function MaquinasDashboardPage() {
   const GET_DATOS = gql`
     query GetProcesosOperacion {
       procesosOperacion {
@@ -144,98 +171,96 @@ export default function MaquinasDashboard() {
     }
   `;
 
-  const { loading, data, refetch, networkStatus } =
-    useQuery<GetProcesosOperacionQuery>(GET_DATOS, {
+  const { data, refetch, networkStatus } = useQuery<GetProcesosOperacionQuery>(
+    GET_DATOS,
+    {
       notifyOnNetworkStatusChange: true,
       fetchPolicy: "cache-and-network",
-    });
+    },
+  );
 
   const isRefetching = networkStatus === NetworkStatus.refetch;
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MachineStatus>(
     "all",
   );
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => refetch(), 30000);
     return () => clearInterval(t);
   }, [refetch]);
 
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
   const machines = useMemo(() => {
     if (!data?.procesosOperacion) return [];
-    const activeStatuses = ["in_progress", "paused"];
+    const activeStatuses = ["in_progress", "paused", "maintenance", "idle"];
     return data.procesosOperacion
       .filter(
         (item) =>
           item?.maquina?.nombre &&
-          activeStatuses.includes(item.estado?.toLowerCase()),
+          activeStatuses.includes(item.estado?.toLowerCase() || "idle"),
       )
       .map((item) => ({
         id: item.id,
         name: item.maquina!.nombre,
         piece: item.proceso?.nombre || null,
         operator: item.usuario?.nombre || null,
-        status: mapStatus(item.estado),
+        status: (item.estado.toLowerCase() === "in_progress"
+          ? "running"
+          : item.estado.toLowerCase()) as MachineStatus,
         startedAt: item.horaInicio || null,
         cycleTargetMin: item.tiempoEstimado,
         operationId: item.operacion?.operacion || "S/N",
         area: item.usuario?.area?.nombre || "General",
       }));
-  }, [data]);
+  }, [data, tick]);
 
-  const groupedMachines = useMemo(() => {
+  // Filtrado
+  const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const filtered = machines.filter((m) => {
-      const okStatus = statusFilter === "all" || m.status === statusFilter;
+    return machines.filter((m) => {
+      const okStatus =
+        statusFilter === "all" ? true : m.status === statusFilter;
       const okTerm =
-        !term ||
+        term.length === 0 ||
         m.name.toLowerCase().includes(term) ||
+        (m.piece ?? "").toLowerCase().includes(term) ||
         (m.operator ?? "").toLowerCase().includes(term);
       return okStatus && okTerm;
     });
-
-    return filtered.reduce(
-      (acc, m) => {
-        if (!acc[m.area]) acc[m.area] = [];
-        acc[m.area].push(m);
-        return acc;
-      },
-      {} as Record<string, Machine[]>,
-    );
   }, [machines, q, statusFilter]);
 
-  if (loading && !isRefetching)
-    return (
-      <div className="p-8 text-center font-sans">Cargando Dashboard...</div>
-    );
-
   return (
-    <div className="min-h-screen bg-neutral-50 p-4 font-sans">
-      <header className="mb-6 max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold tracking-tight">
+    <div className="min-h-screen bg-neutral-50 p-6">
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-4">
+          <h1 className="text-2xl font-semibold tracking-tight">
             Dashboard de Máquinas
           </h1>
-          <div
-            className={cn(
-              "flex items-center gap-2 text-[10px] font-medium transition-opacity",
-              isRefetching ? "opacity-100" : "opacity-0",
-            )}
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-            </span>
-            <span className="text-blue-600 uppercase tracking-tighter">
-              Actualizando datos...
-            </span>
+          <div className="h-4">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-[10px] font-bold text-blue-600 transition-all duration-500",
+                isRefetching
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 -translate-y-1",
+              )}
+            >
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              <span>Sincronizando datos en vivo...</span>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="mb-6 flex flex-col md:flex-row gap-3">
           <Input
-            className="max-w-xs h-8 text-xs bg-white"
-            placeholder="Buscar..."
+            className="flex-1 bg-white"
+            placeholder="Buscar máquina, pieza u operador..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -243,109 +268,129 @@ export default function MaquinasDashboard() {
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as any)}
           >
-            <SelectTrigger className="w-40 h-8 text-xs bg-white">
+            <SelectTrigger className="w-full md:w-56 bg-white">
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las activas</SelectItem>
-              <SelectItem value="running">En Proceso</SelectItem>
-              <SelectItem value="paused">Pausadas</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="running">Trabajando</SelectItem>
+              <SelectItem value="idle">Inactivos</SelectItem>
+              <SelectItem value="maintenance">Mantenimiento</SelectItem>
+              <SelectItem value="paused">Pausados</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      </header>
 
-      <div className="max-w-[1800px] mx-auto space-y-10">
-        {Object.entries(groupedMachines).map(([area, areaMachines]) => (
-          <section key={area} className="space-y-3">
-            <div className="flex items-center gap-3 border-b border-neutral-200 pb-1.5">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">
-                {area}
-              </h2>
-              <Badge variant="secondary" className="text-[9px] h-4 px-1">
-                {areaMachines.length}
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {areaMachines.map((m) => (
-                <MachineCard key={m.id} m={m} />
-              ))}
-            </div>
-          </section>
-        ))}
+        <div className="mb-4 flex flex-wrap gap-4 text-[10px] font-bold text-neutral-400">
+          <LegendDot className="bg-emerald-500" label="En Tiempo" />
+          <LegendDot className="bg-amber-500" label="Sobre TEF < 125%" />
+          <LegendDot className="bg-red-500" label="Excedente < 150%" />
+          <LegendDot className="bg-rose-800" label="Crítico > 150%" />
+          <LegendDot className="bg-slate-400" label="Inactivo" />
+          <LegendDot className="bg-orange-500" label="Pausado" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {filtered.map((m) => (
+            <MachineCard key={m.id} m={m} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
 // -------------------------------
-// 3. Mini Card (Ajustada)
+// Subcomponentes
 // -------------------------------
+function LegendDot({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
+      <span>{label}</span>
+    </span>
+  );
+}
+
 function MachineCard({ m }: { m: Machine }) {
   const elapsed = minsSince(m.startedAt);
-  const target = m.cycleTargetMin ?? 0;
-  const pct = barPct(elapsed, target);
+  const X = m.cycleTargetMin ?? 30;
+  const pct = barPct(elapsed, X);
   const color = statusColor(m);
+  const exceededMin = Math.max(0, elapsed - X);
+  const timingLevel = getTimingLevel(elapsed, X);
 
   return (
     <Card
-      className={cn(
-        "border transition-all shadow-sm overflow-hidden",
-        color.border,
-        color.bg,
-      )}
+      className={cn("border shadow-sm transition-all", color.border, color.bg)}
     >
-      <div className="p-2 border-b bg-white/40 flex items-center justify-between">
-        <span className="text-[10px] font-bold truncate uppercase tracking-tight">
-          {m.name}
-        </span>
-        <span
-          className={cn(
-            "h-2 w-2 rounded-full shadow-sm",
-            color.dot,
-            m.status === "running" && "animate-pulse",
+      <CardHeader className="p-3 pb-2 border-b bg-white/40">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold truncate">
+            {m.name}
+          </CardTitle>
+          <span
+            className={cn(
+              "h-2.5 w-2.5 rounded-full",
+              color.dot,
+              m.status === "running" && "animate-pulse",
+            )}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="p-3 space-y-2 text-[12px]">
+        <StackedRow label="Pieza">
+          {m.piece ? (
+            <strong>{m.piece}</strong>
+          ) : (
+            <span className="text-muted-foreground">—</span>
           )}
-        />
-      </div>
+        </StackedRow>
+        <StackedRow label="Operador">
+          {m.operator ? (
+            m.operator.toLowerCase()
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </StackedRow>
+        <Row label="Inicio">
+          {m.status === "running" && m.startedAt ? (
+            new Date(m.startedAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </Row>
+        <Row
+          label={
+            <AcronymLabel
+              short="TRF"
+              description="Tiempo real desde que inició el trabajo."
+            />
+          }
+        >
+          {m.status === "running" ? (
+            formatDuration(elapsed)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </Row>
+        <Row
+          label={
+            <AcronymLabel
+              short="TEF"
+              description="Tiempo estimado de fabricación por planeación."
+            />
+          }
+        >
+          {formatDuration(X)}
+        </Row>
 
-      <CardContent className="p-2.5 space-y-2 text-[10px]">
-        <div className="flex justify-between items-center">
-          <span className="text-neutral-400 font-medium">WO:</span>
-          <span className="font-mono font-bold text-neutral-800">
-            {m.operationId}
-          </span>
-        </div>
-
-        <div className="flex justify-between items-center">
-          <span className="text-neutral-400 font-medium">OP:</span>
-          <span className="font-medium truncate max-w-[80px] text-right">
-            {m.operator || "—"}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-black/5">
-          <div className="flex flex-col">
-            <span className="text-[9px] text-neutral-400 uppercase">TEF</span>
-            <span className="font-bold text-neutral-700">
-              {formatDuration(target)}
-            </span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[9px] text-neutral-400 uppercase">TRF</span>
-            <span
-              className={cn(
-                "font-bold",
-                m.status === "paused" ? "text-orange-600" : "text-neutral-800",
-              )}
-            >
-              {m.status === "running" ? fmtElapsed(elapsed) : "Pausado"}
-            </span>
-          </div>
-        </div>
-
-        {m.status === "running" && target > 0 && (
-          <div className="space-y-1 pt-1">
-            <div className="h-1 w-full rounded-full bg-black/5 overflow-hidden">
+        {m.status === "running" && X > 0 && (
+          <div className="mt-2">
+            <div className="h-1.5 w-full rounded-full bg-black/10 overflow-hidden">
               <div
                 className={cn("h-full transition-all duration-1000", color.bar)}
                 style={{ width: `${pct}%` }}
@@ -353,16 +398,97 @@ function MachineCard({ m }: { m: Machine }) {
             </div>
             <div
               className={cn(
-                "flex justify-between text-[9px] font-bold",
+                "mt-1 text-[10px] font-medium leading-tight",
                 color.text,
               )}
             >
-              <span>PROGRESO</span>
-              <span>{pct}%</span>
+              {timingLevel === "on_time" && (
+                <span className="animate-pulse">
+                  Dentro del tiempo estimado
+                </span>
+              )}
+              {timingLevel === "over_25" && (
+                <span>Superó TEF por {exceededMin}m</span>
+              )}
+              {timingLevel === "over_50" && <span>Excedió 25% del TEF</span>}
+              {timingLevel === "over_50_plus" && (
+                <span className="font-bold">Exceso crítico (+50%)</span>
+              )}
             </div>
           </div>
         )}
+
+        <div className="pt-1">
+          <Badge
+            className={cn(
+              "text-[9px] tracking-tighter h-5",
+              m.status === "running"
+                ? "bg-emerald-600"
+                : m.status === "paused"
+                  ? "bg-orange-600"
+                  : m.status === "maintenance"
+                    ? "bg-sky-600"
+                    : "bg-slate-500",
+            )}
+          >
+            {m.status === "running" ? "Trabajando" : m.status.toUpperCase()}
+          </Badge>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-neutral-400 font-medium text-[9px]">{label}</span>
+      <div className="text-right font-bold text-neutral-700">{children}</div>
+    </div>
+  );
+}
+
+function StackedRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <div className="text-[9px] font-bold text-neutral-400 tracking-tighter">
+        {label}
+      </div>
+      <div className="truncate text-neutral-800 leading-tight">{children}</div>
+    </div>
+  );
+}
+
+function AcronymLabel({
+  short,
+  description,
+}: {
+  short: string;
+  description: string;
+}) {
+  return (
+    <span className="group relative inline-flex items-center">
+      <button
+        type="button"
+        className="underline decoration-dotted underline-offset-2"
+      >
+        {short}
+      </button>
+      <span className="pointer-events-none absolute left-0 top-full z-10 mt-1 w-56 rounded-md border bg-white p-2 text-[10px] leading-snug text-foreground shadow-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        {description}
+      </span>
+    </span>
   );
 }
