@@ -125,6 +125,27 @@ export default function ProyectosPage() {
       return acc;
     }, {});
 
+    // Orden deseado por el usuario (de izquierda a derecha)
+    const desiredOrder = [
+      "corte",
+      "escuadre",
+      "programacion cnc",
+      "maquinado cnc",
+      "paileria",
+      "pintura",
+      "calidad",
+      "almacen",
+    ];
+
+    const normalize = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
     return Object.entries(proyectosMap).map(([id, stats]: [string, any]) => {
       const pct =
         stats.totalMeta > 0
@@ -133,8 +154,35 @@ export default function ProyectosPage() {
               Math.round((stats.totalActual / stats.totalMeta) * 100),
             )
           : 0;
+      // Construir mapa normalizado de procesos
+      const procMap = Object.entries(stats.detalleProcesos).reduce(
+        (m: any, [nombre, stat]: any) => {
+          m[normalize(nombre)] = { nombre, stat };
+          return m;
+        },
+        {} as Record<string, { nombre: string; stat: any }>,
+      );
 
-      const procesos: ProcessCard[] = Object.entries(stats.detalleProcesos).map(
+      const orderedProcesos: Record<string, any> = {};
+      // Agregar procesos en el orden deseado
+      desiredOrder.forEach((d) => {
+        const key = normalize(d);
+        if (procMap[key]) {
+          const { nombre, stat } = procMap[key];
+          orderedProcesos[nombre] = stat;
+          delete procMap[key];
+        }
+      });
+
+      // Agregar el resto en orden alfabético
+      const remaining = Object.values(procMap).sort((a: any, b: any) =>
+        a.nombre.localeCompare(b.nombre),
+      );
+      remaining.forEach(({ nombre, stat }: any) => {
+        orderedProcesos[nombre] = stat;
+      });
+
+      const procesos: ProcessCard[] = Object.entries(orderedProcesos).map(
         ([nombre, stat]: [string, any]) => ({
           id: nombre,
           name: nombre,

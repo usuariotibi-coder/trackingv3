@@ -72,3 +72,12 @@ const UPDATE_TIEMPO_SETUP = gql`
 `;
 
 -------------------------------------------------------------
+
+1. corte
+2. escuadre
+3. programacion cnc
+4. maquinadoo cnc
+5. paileria
+6. pintura
+7. calidad
+8. almacen
