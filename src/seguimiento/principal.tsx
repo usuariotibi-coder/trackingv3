@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
-import { gql } from "@apollo/client";
+import { gql, NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
+import { RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type ProcessCard = {
   id: string;
@@ -77,7 +79,19 @@ export default function ProyectosPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const { loading, error, data } = useQuery<OperacionesQueryResult>(GET_DATOS);
+  const { error, data, refetch, networkStatus } =
+    useQuery<OperacionesQueryResult>(GET_DATOS, {
+      notifyOnNetworkStatusChange: true,
+      fetchPolicy: "cache-and-network",
+    });
+
+  const isRefetching = networkStatus === NetworkStatus.refetch;
+
+  // Refetch datos en vivo cada minuto
+  useEffect(() => {
+    const t = setInterval(() => refetch(), 60000);
+    return () => clearInterval(t);
+  }, [refetch]);
 
   const projects = useMemo(() => {
     if (!data?.operaciones) return [] as ProjectCard[];
@@ -209,6 +223,19 @@ export default function ProyectosPage() {
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <h1 className="text-3xl font-semibold tracking-tight">Proyectos</h1>
+          <div className="h-4">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-[12px] font-bold text-blue-600 transition-all duration-500",
+                isRefetching
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 -translate-y-1",
+              )}
+            >
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              <span>Sincronizando datos en vivo...</span>
+            </div>
+          </div>
           <p className="mt-1 text-sm text-neutral-600">
             Visualizacion en tiempo real de avance y metricas de tiempo por
             proyecto.
@@ -216,18 +243,12 @@ export default function ProyectosPage() {
         </header>
 
         <div className="space-y-5">
-          {loading && (
-            <p className="text-center py-10 animate-pulse">
-              Cargando avance...
-            </p>
-          )}
           {error && (
             <p className="text-center py-10 text-red-500">
               Error: {error.message}
             </p>
           )}
-          {!loading &&
-            !error &&
+          {!error &&
             projects.map((project) => (
               <ProjectProgressCard key={project.id} project={project} />
             ))}
