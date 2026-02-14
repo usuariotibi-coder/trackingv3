@@ -13,38 +13,49 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
+interface RegistrarObsData {
+  registrarObservacionSesion: {
+    id: string;
+    observaciones: string;
+  };
+}
+
 const REGISTRAR_OBS = gql`
-  mutation RegistrarProblema($id: ID!, $tipo: String!, $desc: String!) {
-    registrarObservacion(
-      procesoOpId: $id
-      tipoRegistro: $tipo
-      descripcion: $desc
-    ) {
+  mutation RegistrarProblema($id: ID!, $texto: String!) {
+    registrarObservacionSesion(sesionId: $id, texto: $texto) {
       id
+      observaciones
     }
   }
 `;
 
 export function AccionProblema({
-  procesoOpId,
+  sesionId, // Nota: Asegúrate de pasar el ID de la SESIÓN, no del ProcesoOp
   onActionSuccess,
 }: {
-  procesoOpId: string;
+  sesionId: string;
   onActionSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState("");
-  const [registrar] = useMutation(REGISTRAR_OBS);
+  const [registrar] = useMutation<RegistrarObsData>(REGISTRAR_OBS);
 
   const handleConfirm = async () => {
     try {
-      await registrar({
-        variables: { id: procesoOpId, tipo: "PROBLEMA_TECNICO", desc },
+      const res = await registrar({
+        variables: {
+          id: sesionId,
+          texto: desc,
+        },
       });
-      toast.warning("Problema reportado en bitácora");
-      setOpen(false);
-      setDesc("");
-      onActionSuccess();
+
+      // Verificamos si existe la respuesta y el ID antes de proceder
+      if (res.data?.registrarObservacionSesion?.id) {
+        toast.warning("Problema reportado en bitácora");
+        setOpen(false);
+        setDesc("");
+        onActionSuccess();
+      }
     } catch (e: any) {
       toast.error(e.message);
     }

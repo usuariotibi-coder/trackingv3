@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { gql } from "@apollo/client";
-import { useQuery, useMutation } from "@apollo/client/react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
 import { toast } from "sonner";
 import { Clock } from "lucide-react";
 
@@ -31,6 +31,7 @@ import { AccionScrap } from "./scan-actions/scrap";
 import { AccionPausa } from "./scan-actions/pausa";
 import { AccionProblema } from "./scan-actions/problema";
 import { AccionSetup } from "./scan-actions/setup-time";
+import { cn } from "@/lib/utils";
 
 /* --------------------------------- Interfaces -------------------------------- */
 interface UsuarioData {
@@ -46,6 +47,18 @@ interface ProcesoOpData {
   procesoOpPorOperacionYProceso: {
     id: string;
     estado: string;
+    sesiones: Array<{
+      id: string;
+      horaInicio: string | null;
+      horaFin: string | null;
+      pausas: Array<{
+        id: string;
+        horaInicio: string | null; // Agregado
+        horaFin: string | null;
+        motivo: string | null; // Agregado
+        duracionMinutos: number | null; // Agregado
+      }>;
+    }>;
     horaInicio: string | null;
     conteoActual: number;
     operacion: { id: string; workorder: { cantidad: number } };
@@ -57,13 +70,30 @@ interface MaquinasData {
   maquinaPorProceso: Array<{ id: string; nombre: string }>;
 }
 
-interface RegistrarEscaneoRes {
-  registrarEscaneoOperacion: {
+interface RegistrarSesionRes {
+  registrarSesionTrabajo: {
     id: string;
     estado: string;
     conteoActual: number;
-    operacion: { id: string; workorder: { cantidad: number } };
+    procesoOp: {
+      id: string;
+      estado: string;
+      conteoActual: number;
+    };
   };
+}
+
+interface SesionActivaData {
+  sesionActivaPorNomina: {
+    id: string;
+    procesoOp: {
+      id: string;
+      codigo: string;
+    };
+    maquina: {
+      nombre: string;
+    };
+  } | null;
 }
 
 /* --------------------------------- Queries -------------------------------- */
@@ -101,6 +131,17 @@ const GET_PROCESO = gql`
         id
         nombre
       }
+      sesiones {
+        id
+        horaFin
+        pausas {
+          id
+          horaInicio
+          horaFin
+          motivo
+          duracionMinutos
+        }
+      }
     }
   }
 `;
@@ -114,25 +155,37 @@ const GET_MAQUINAS = gql`
   }
 `;
 
-const REGISTRAR_ESCANEO = gql`
-  mutation RegistrarEscaneo(
+const INICIAR_SESION = gql`
+  mutation RegistrarSesion(
     $procesoOpId: ID!
     $usuarioId: ID!
-    $maquinaId: ID
+    $maquinaId: ID!
   ) {
-    registrarEscaneoOperacion(
+    registrarSesionTrabajo(
       procesoOpId: $procesoOpId
       usuarioId: $usuarioId
       maquinaId: $maquinaId
     ) {
       id
-      estado
-      conteoActual
-      operacion {
+      conteoParcial
+      procesoOp {
         id
-        workorder {
-          cantidad
-        }
+        conteoActual
+        estado
+      }
+    }
+  }
+`;
+
+const GET_SESION_ACTIVA = gql`
+  query GetSesionActiva($numero: String!) {
+    sesionActivaPorNomina(numeroEmpleado: $numero) {
+      id
+      procesoOp {
+        id
+      }
+      maquina {
+        nombre
       }
     }
   }
@@ -153,13 +206,14 @@ const REGISTRAR_OBSERVACION = gql`
 
 export default function ScanStation() {
   const [employeeId, setEmployeeId] = useState("");
+  const [sesionId, setSesionId] = useState<string | null>(null);
   const [workOrder, setWorkOrder] = useState("");
   const [maquinaSeleccionadaId, setMaquinaSeleccionadaId] = useState<
     string | undefined
   >(undefined);
   const [tiempoTranscurrido, setTiempoTranscurrido] = useState("00:00:00");
-
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+  const [bloqueadoPorPausa, setBloqueadoPorPausa] = useState(false);
 
   const woInputRef = useRef<HTMLInputElement>(null);
   const empInputRef = useRef<HTMLInputElement>(null);
@@ -179,13 +233,43 @@ export default function ScanStation() {
   );
   const procesoEspecifico = dataP?.procesoOpPorOperacionYProceso;
 
+  const esScrap = procesoEspecifico?.estado === "scrap";
+
+  const botonBloqueado = bloqueadoPorPausa || esScrap || !maquinaSeleccionadaId;
+
   const { data: dataM } = useQuery<MaquinasData>(GET_MAQUINAS, {
     variables: { procesoId },
     skip: !procesoId,
   });
 
-  const [registrarEscaneo] =
-    useMutation<RegistrarEscaneoRes>(REGISTRAR_ESCANEO);
+  const [registrarSesion] = useMutation<RegistrarSesionRes>(INICIAR_SESION, {
+    onCompleted: (data) => {
+      console.log("Resultado:", data?.registrarSesionTrabajo);
+      toast.success("Pieza registrada con éxito");
+      setSesionId(data?.registrarSesionTrabajo.id || "");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const [consultarSesion, { data }] =
+    useLazyQuery<SesionActivaData>(GET_SESION_ACTIVA);
+
+  // Cada vez que el input de número de empleado cambie y tenga longitud válida (ej. 4 digitos)
+  useEffect(() => {
+    if (employeeId.length >= 4) {
+      consultarSesion({ variables: { numero: employeeId } });
+    }
+  }, [employeeId]);
+
+  // Si el query nos devuelve una sesión, la guardamos
+  useEffect(() => {
+    if (data?.sesionActivaPorNomina) {
+      setSesionId(data.sesionActivaPorNomina.id);
+      toast.info("Sesión activa recuperada automáticamente");
+    }
+  }, [data]);
 
   const [registrarObs] = useMutation(REGISTRAR_OBSERVACION);
 
@@ -248,30 +332,44 @@ export default function ScanStation() {
   const ejecutarRegistroEscaneo = async () => {
     if (!procesoEspecifico || !dataE?.usuario?.id) return;
 
+    const conteoPrevio = procesoEspecifico.conteoActual;
+    const meta = procesoEspecifico.operacion.workorder.cantidad;
+
+    // 1. BLOQUEO: Si ya se alcanzó la meta, no registrar más piezas.
+    if (conteoPrevio >= meta) {
+      if (procesoEspecifico.proceso.id === "3") {
+        setIsFinalizeModalOpen(true);
+      } else {
+        toast.error("Esta orden ya está completa.");
+      }
+      return;
+    }
+
     try {
-      const { data } = await registrarEscaneo({
+      const { data } = await registrarSesion({
         variables: {
           procesoOpId: procesoEspecifico.id,
           usuarioId: dataE.usuario.id,
-          maquinaId: maquinaSeleccionadaId || null,
+          maquinaId: maquinaSeleccionadaId,
         },
       });
 
-      const res = data?.registrarEscaneoOperacion;
+      const res = data?.registrarSesionTrabajo;
+      if (!res || !res.procesoOp) return;
 
-      if (res?.estado === "done") {
-        // Si el backend dice que terminó y es Programación (ID 3), abrimos el modal de Setup
+      const nuevoConteo = res.procesoOp.conteoActual;
+
+      // 2. Lógica de mensajes y apertura de modal
+      if (nuevoConteo === 0) {
+        toast.success("Sesión iniciada.");
+      } else if (nuevoConteo >= meta) {
+        toast.success("¡Orden completada!");
+        // Solo disparamos el modal si es el proceso de Programación (ID 3)
         if (procesoEspecifico.proceso.id === "3") {
           setIsFinalizeModalOpen(true);
-        } else {
-          // Para cualquier otro proceso, éxito y limpieza inmediata
-          toast.success("✅ Orden finalizada.");
-          limpiarEstacion();
         }
       } else {
-        toast.info(
-          `Pieza ${res?.conteoActual}/${res?.operacion.workorder.cantidad} registrada.`,
-        );
+        toast.info(`Pieza registrada: ${nuevoConteo} / ${meta}`);
       }
 
       refetchP();
@@ -353,23 +451,34 @@ export default function ScanStation() {
 
             <Button
               size="lg"
-              className={`w-full h-10 ${procesoEspecifico?.estado === "done" ? "bg-green-600" : ""}`}
+              className={cn(
+                "w-full h-10 transition-all bg-indigo-600 hover:bg-indigo-700 disabled:cursor-not-allowed",
+                procesoEspecifico?.estado === "done"
+                  ? "bg-green-600"
+                  : esScrap
+                    ? "bg-red-800"
+                    : bloqueadoPorPausa
+                      ? "bg-orange-500"
+                      : "",
+              )}
               onClick={handleAction}
               disabled={
-                !procesoEspecifico || procesoEspecifico.estado === "done"
+                !procesoEspecifico ||
+                procesoEspecifico.estado === "done" ||
+                botonBloqueado
               }
             >
               {!procesoEspecifico
                 ? "Esperando Scan..."
-                : procesoEspecifico.estado === "pending"
-                  ? "Iniciar Proceso"
-                  : procesoEspecifico.estado === "paused"
-                    ? "Reanudar Proceso"
+                : esScrap
+                  ? "Scrap"
+                  : bloqueadoPorPausa
+                    ? "Sesión en Pausa"
                     : procesoEspecifico.estado === "done"
                       ? "Orden Finalizada"
-                      : procesoEspecifico.conteoActual + 1 >=
+                      : procesoEspecifico.conteoActual >=
                           procesoEspecifico.operacion.workorder.cantidad
-                        ? "Finalizar Orden" // Texto especial para la última pieza
+                        ? "Cargar Tiempo Setup"
                         : `Registrar Pieza (${procesoEspecifico.conteoActual + 1}/${procesoEspecifico.operacion.workorder.cantidad})`}
             </Button>
           </CardContent>
@@ -417,35 +526,43 @@ export default function ScanStation() {
       </div>
 
       {/* Sección de acciones secundarias */}
+      {/* Sección de acciones secundarias */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <AccionIndirecto usuarioId={dataE?.usuario?.id} />
 
-        {/* Solo mostramos estas acciones si hay un proceso y NO está terminado */}
-        {procesoEspecifico && procesoEspecifico.estado !== "done" && (
-          <>
-            <AccionScrap
-              procesoOpId={procesoEspecifico.id}
-              onActionSuccess={refetchP}
-            />
-            <AccionPausa
-              procesoEspecifico={procesoEspecifico}
-              onActionSuccess={refetchP}
-            />
-            <AccionProblema
-              procesoOpId={procesoEspecifico.id}
-              onActionSuccess={refetchP}
-            />
-          </>
-        )}
+        {/* Lógica unificada para Acciones vs Mensaje de Cierre */}
+        {sesionId &&
+          procesoEspecifico &&
+          (procesoEspecifico.estado === "done" ||
+          procesoEspecifico.estado === "scrap" ? (
+            // Este bloque se muestra SOLO cuando la orden terminó, ocupando el lugar de los botones
+            <div className="col-span-1 md:col-span-3 flex items-center justify-center bg-slate-50 rounded-lg border border-dashed border-slate-300 px-4">
+              <p className="text-sm text-slate-500 italic text-center">
+                Acciones de sesión deshabilitadas: Orden finalizada
+              </p>
+            </div>
+          ) : (
+            // Este bloque muestra los botones mientras la orden esté activa
+            <>
+              <AccionScrap
+                sesionId={sesionId}
+                procesoOpId={procesoEspecifico.id}
+                onActionSuccess={refetchP}
+              />
 
-        {/* Opcional: Badge informativo si ya terminó */}
-        {procesoEspecifico?.estado === "done" && (
-          <div className="col-span-1 md:col-span-3 flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300">
-            <p className="text-sm text-slate-500 italic">
-              Acciones de orden deshabilitadas por finalización
-            </p>
-          </div>
-        )}
+              <AccionPausa
+                sesionId={sesionId}
+                pausas={
+                  procesoEspecifico?.sesiones.find((s) => s.id === sesionId)
+                    ?.pausas || []
+                }
+                onActionSuccess={refetchP}
+                onPausaChange={(pausado) => setBloqueadoPorPausa(pausado)}
+              />
+
+              <AccionProblema sesionId={sesionId} onActionSuccess={refetchP} />
+            </>
+          ))}
 
         {procesoEspecifico && (
           <AccionSetup

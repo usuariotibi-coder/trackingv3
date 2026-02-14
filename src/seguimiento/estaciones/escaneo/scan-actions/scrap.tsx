@@ -14,40 +14,52 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-const REGISTRAR_OBS = gql`
-  mutation RegistrarScrap($id: ID!, $tipo: String!, $desc: String!) {
-    registrarObservacion(
-      procesoOpId: $id
-      tipoRegistro: $tipo
-      descripcion: $desc
+const REGISTRAR_SCRAP = gql`
+  mutation RegistrarScrapCritico(
+    $sesionId: ID!
+    $procesoOpId: ID!
+    $motivo: String!
+  ) {
+    registrarScrapCritico(
+      sesionId: $sesionId
+      procesoOpId: $procesoOpId
+      motivo: $motivo
     ) {
       id
-      observaciones
+      procesoOp {
+        id
+        estado
+      }
     }
   }
 `;
 
 export function AccionScrap({
+  sesionId,
   procesoOpId,
   onActionSuccess,
 }: {
+  sesionId: string;
   procesoOpId: string;
   onActionSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
-  const [registrar] = useMutation(REGISTRAR_OBS);
+  const [registrar] = useMutation(REGISTRAR_SCRAP);
 
   const handleConfirm = async () => {
-    if (motivo.length < 5)
-      return toast.error("Por favor detalle el motivo del rechazo.");
+    if (motivo.length < 5) return toast.error("Detalle el motivo del scrap.");
+
     try {
       await registrar({
-        variables: { id: procesoOpId, tipo: "RECHAZO_SCRAP", desc: motivo },
+        variables: {
+          sesionId,
+          procesoOpId,
+          motivo,
+        },
       });
-      toast.error("Pieza marcada como SCRAP");
+      toast.error("Proceso detenido por SCRAP");
       setOpen(false);
-      setMotivo("");
       onActionSuccess();
     } catch (e: any) {
       toast.error(e.message);

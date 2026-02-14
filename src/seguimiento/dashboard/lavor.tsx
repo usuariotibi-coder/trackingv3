@@ -48,42 +48,42 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-//import { Separator } from "@/components/ui/separator";
 import {
-  //User,
   Calendar as CalendarIcon,
   Activity,
-  //Timer,
   Hourglass,
-  Download, // Icono para exportar
+  Download,
 } from "lucide-react";
 
-/* ============================
-   Tipos GraphQL y Respuesta
-================================ */
-
-type ProcesoAsignado = {
-  proceso: { nombre: string };
-  tiempoEstimado?: number | null;
-  horaInicio?: string | null;
-  horaFin?: string | null;
-  tiempoRealCalculado?: number | null;
-  operacion: {
-    operacion: string;
-    proyecto?: { proyecto: string } | null;
+interface SesionTrabajo {
+  id: string;
+  horaInicio: string;
+  horaFin: string | null;
+  tiempoEfectivo: number;
+  tiempoTotal: number;
+  conteoParcial: number;
+  observaciones: string | null;
+  pausas: Array<{
+    id: string;
+    duracionMinutos: number;
+    motivo: string;
+  }>;
+  maquina: { nombre: string };
+  procesoOp: {
+    tiempoEstimado: number | null;
+    proceso: { nombre: string };
+    operacion: {
+      operacion: string;
+      proyecto: { proyecto: string } | null;
+    };
   };
-  maquina?: { nombre: string } | null;
-};
-
-interface GetUsuariosData {
-  usuarios: { id: string; numero: string; nombre: string }[];
 }
 
 interface GetUserData {
   usuario: {
     id: string;
     nombre: string;
-    procesosAsignados: ProcesoAsignado[];
+    historialSesiones: SesionTrabajo[]; // Cambio de procesosAsignados a historialSesiones
   } | null;
 }
 
@@ -91,48 +91,54 @@ type Interval = {
   start: string;
   end: string;
   minutes: number;
-  kind: "work" | "break" | "unknown";
+  kind: string;
   maquinaNombre: string;
   operacion: string;
   proyecto: string;
   tiempoEstimado: number;
+  pausas: Array<{ duracionMinutos: number; motivo: string }>;
 };
 
-/* ============================
-   Queries GraphQL
-================================ */
-
-const GET_USUARIOS = gql`
-  query GetUsuarios {
-    usuarios {
-      id
-      numero
-      nombre
-    }
-  }
-`;
+interface GetUsuariosData {
+  usuarios: Array<{
+    id: string;
+    numero: string;
+    nombre: string;
+  }>;
+}
 
 const GET_USUARIO = gql`
-  query GetUsuario($numero: String!, $fecha: Date) {
-    usuario(numero: $numero, fecha: $fecha) {
+  query GetUsuario($numero: String!) {
+    usuario(numero: $numero) {
       id
       nombre
-      procesosAsignados {
-        proceso {
-          nombre
-        }
-        tiempoEstimado
+      historialSesiones {
+        id
         horaInicio
         horaFin
-        tiempoRealCalculado
-        operacion {
-          operacion
-          proyecto {
-            proyecto
-          }
+        tiempoEfectivo
+        tiempoTotal
+        conteoParcial
+        observaciones
+        pausas {
+          id
+          duracionMinutos
+          motivo
         }
         maquina {
           nombre
+        }
+        procesoOp {
+          tiempoEstimado
+          proceso {
+            nombre
+          }
+          operacion {
+            operacion
+            proyecto {
+              proyecto
+            }
+          }
         }
       }
     }
@@ -147,49 +153,42 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDuration(totalMinutes: number): string {
-  if (totalMinutes < 60) return `${totalMinutes}m`;
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-}
-
 export default function LavorPage() {
-  const { data: usersData } = useQuery<GetUsuariosData>(GET_USUARIOS);
+  const { data: usersListData } = useQuery<GetUsuariosData>(gql`
+    query GetUsuarios {
+      usuarios {
+        id
+        numero
+        nombre
+      }
+    }
+  `);
+
   const [currentSelectedNumero, setCurrentSelectedNumero] =
     useState<string>("");
   const [projectFilter, setProjectFilter] = useState<string>("ALL_PROJECTS");
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   const { employees, defaultNumero } = useMemo(() => {
-    if (usersData?.usuarios) {
-      const validUsers = usersData.usuarios.filter(
-        (emp) => emp.numero && emp.numero !== "",
-      );
-      return {
-        employees: validUsers,
-        defaultNumero: validUsers.length > 0 ? validUsers[0].numero : "",
-      };
-    }
-    return { employees: [], defaultNumero: "" };
-  }, [usersData]);
+    const list = usersListData?.usuarios ?? [];
+    return {
+      employees: list,
+      defaultNumero: list.length > 0 ? list[0].numero : "",
+    };
+  }, [usersListData]);
 
   const selectedEmployeeNumero = currentSelectedNumero || defaultNumero;
 
   const { data: userData } = useQuery<GetUserData>(GET_USUARIO, {
     variables: {
       numero: selectedEmployeeNumero,
-      fecha: date ? format(date, "yyyy-MM-dd") : null,
     },
     skip: !selectedEmployeeNumero,
   });
 
-  const allProcesos = userData?.usuario?.procesosAsignados as
-    | ProcesoAsignado[]
-    | undefined;
-
   const timelineData = useMemo(() => {
-    if (!allProcesos || allProcesos.length === 0)
+    const sesiones = userData?.usuario?.historialSesiones;
+    if (!sesiones || sesiones.length === 0)
       return { intervals: [], totalWorkMin: 0, totalEstMin: 0, chartData: [] };
 
     const intervals: Interval[] = [];
@@ -201,50 +200,55 @@ export default function LavorPage() {
       hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
     }
 
-    allProcesos
-      .filter((p) => p.horaInicio)
-      .forEach((proc) => {
-        const start = new Date(proc.horaInicio!);
-        const end = proc.horaFin ? new Date(proc.horaFin) : new Date();
-        const minutes = Math.round(
-          proc.tiempoRealCalculado ?? diffMinutes(start, end),
-        );
+    sesiones.forEach((sesion) => {
+      const start = new Date(sesion.horaInicio);
+      const end = sesion.horaFin ? new Date(sesion.horaFin) : new Date();
 
-        if (minutes > 0) {
-          intervals.push({
-            start: proc.horaInicio!,
-            end: proc.horaFin ?? end.toISOString(),
-            minutes,
-            kind: "work",
-            maquinaNombre: proc.maquina?.nombre ?? "N/A",
-            operacion: proc.operacion.operacion ?? "N/A",
-            proyecto: proc.operacion.proyecto?.proyecto ?? "N/A",
-            tiempoEstimado: proc.tiempoEstimado ?? 0,
-          });
-          totalWorkMin += minutes;
-          totalEstMin += proc.tiempoEstimado ?? 0;
+      // Usamos el tiempo efectivo que descuenta pausas automáticamente
+      const minutes = Math.round(sesion.tiempoEfectivo);
+      const estimado = sesion.procesoOp.tiempoEstimado ?? 0;
 
-          let cursor = new Date(start);
-          while (cursor < end) {
-            const hourKey = format(cursor, "HH:00");
+      if (minutes >= 0) {
+        const pausasArray = sesion.pausas ?? [];
+        intervals.push({
+          start: sesion.horaInicio,
+          end: sesion.horaFin ?? end.toISOString(),
+          minutes,
+          kind: "work",
+          maquinaNombre: sesion.maquina?.nombre ?? "N/A",
+          operacion: sesion.procesoOp.operacion.operacion ?? "N/A",
+          proyecto: sesion.procesoOp.operacion.proyecto?.proyecto ?? "N/A",
+          tiempoEstimado: estimado,
+          pausas: pausasArray.map((p) => ({
+            duracionMinutos: p.duracionMinutos,
+            motivo: p.motivo,
+          })),
+        });
+
+        totalWorkMin += minutes;
+        totalEstMin += estimado;
+
+        // Lógica para la gráfica de distribución por horas
+        let cursor = new Date(start);
+        while (cursor < end) {
+          const hourKey = format(cursor, "HH:00");
+          if (hourBuckets[hourKey] !== undefined) {
             const nextHour = addHours(startOfHour(cursor), 1);
             const limit = end < nextHour ? end : nextHour;
-            if (hourBuckets[hourKey] !== undefined)
-              hourBuckets[hourKey] += diffMinutes(cursor, limit);
-            cursor = nextHour;
+            hourBuckets[hourKey] += diffMinutes(cursor, limit);
           }
+          cursor = addHours(startOfHour(cursor), 1);
         }
-      });
+      }
+    });
 
     const chartData = Object.entries(hourBuckets).map(([hour, mins]) => ({
       hour,
       minutos: Math.round(mins),
     }));
-    intervals.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
-    );
+
     return { intervals, totalWorkMin, totalEstMin, chartData };
-  }, [allProcesos]);
+  }, [userData]);
 
   const filteredIntervals = useMemo(() => {
     if (projectFilter === "ALL_PROJECTS") return timelineData.intervals;
@@ -309,6 +313,14 @@ export default function LavorPage() {
     timelineData.totalWorkMin > 0
       ? Math.round((timelineData.totalEstMin / timelineData.totalWorkMin) * 100)
       : 0;
+
+  function formatDuration(totalMinutes: number): string {
+    const roundedMins = Math.round(totalMinutes);
+    if (roundedMins < 60) return `${roundedMins}m`;
+    const hours = Math.floor(roundedMins / 60);
+    const mins = roundedMins % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-black px-6 py-10">
@@ -469,38 +481,63 @@ export default function LavorPage() {
                   <TableHead className="text-center">Fin</TableHead>
                   <TableHead className="text-center">Estimado</TableHead>
                   <TableHead className="text-center">Real</TableHead>
+                  <TableHead className="text-center">Pausas</TableHead>
                   <TableHead className="text-center">Proceso</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredIntervals.map((itv, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="text-center font-mono text-xs">
-                      {formatTime(new Date(itv.start))}
-                    </TableCell>
-                    <TableCell className="text-center font-mono text-xs">
-                      {itv.end === new Date().toISOString()
-                        ? "En curso"
-                        : formatTime(new Date(itv.end))}
-                    </TableCell>
-                    <TableCell className="text-center text-neutral-400 text-xs">
-                      {formatDuration(itv.tiempoEstimado)}
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-center font-bold text-xs",
-                        itv.minutes > itv.tiempoEstimado
-                          ? "text-red-500"
-                          : "text-emerald-500",
-                      )}
-                    >
-                      {formatDuration(itv.minutes)}
-                    </TableCell>
-                    <TableCell className="text-center text-sm">
-                      {itv.operacion}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredIntervals.map((itv, i) => {
+                  const totalPausasMin = itv.pausas.reduce(
+                    (acc, p) => acc + p.duracionMinutos,
+                    0,
+                  );
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="text-center font-mono text-xs">
+                        {formatTime(new Date(itv.start))}
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-xs">
+                        {itv.end === new Date().toISOString()
+                          ? "En curso"
+                          : formatTime(new Date(itv.end))}
+                      </TableCell>
+                      <TableCell className="text-center text-neutral-400 text-xs">
+                        {formatDuration(itv.tiempoEstimado)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-center font-bold text-xs",
+                          itv.minutes > itv.tiempoEstimado
+                            ? "text-red-500"
+                            : "text-emerald-500",
+                        )}
+                      >
+                        {formatDuration(itv.minutes)}
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        <div className="flex flex-col gap-1">
+                          {totalPausasMin > 0 ? (
+                            <>
+                              <span className="font-semibold text-xs">
+                                {formatDuration(totalPausasMin)}
+                              </span>
+                              <div className="text-[10px] text-neutral-500 space-y-1">
+                                {itv.pausas.map((p, idx) => (
+                                  <div key={idx}>{p.motivo}</div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-neutral-400">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {itv.operacion}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

@@ -73,13 +73,16 @@ const GET_DATOS = gql`
 
 export default function ProyectosPage() {
   const [tick, setTick] = useState(0);
+  const [sortBy, setSortBy] = useState<"progress" | "name" | "urgency">(
+    "urgency",
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  const { error, data, refetch, networkStatus } =
+  const { error, loading, data, refetch, networkStatus } =
     useQuery<OperacionesQueryResult>(GET_DATOS, {
       notifyOnNetworkStatusChange: true,
       fetchPolicy: "cache-and-network",
@@ -160,61 +163,79 @@ export default function ProyectosPage() {
         .replace(/\s+/g, " ")
         .trim();
 
-    return Object.entries(proyectosMap).map(([id, stats]: [string, any]) => {
-      const pct =
-        stats.totalMeta > 0
-          ? Math.min(
-              100,
-              Math.round((stats.totalActual / stats.totalMeta) * 100),
-            )
-          : 0;
-      // Construir mapa normalizado de procesos
-      const procMap = Object.entries(stats.detalleProcesos).reduce(
-        (m: any, [nombre, stat]: any) => {
-          m[normalize(nombre)] = { nombre, stat };
-          return m;
-        },
-        {} as Record<string, { nombre: string; stat: any }>,
-      );
+    const result = Object.entries(proyectosMap).map(
+      ([id, stats]: [string, any]) => {
+        const pct =
+          stats.totalMeta > 0
+            ? Math.min(
+                100,
+                Math.round((stats.totalActual / stats.totalMeta) * 100),
+              )
+            : 0;
+        // Construir mapa normalizado de procesos
+        const procMap = Object.entries(stats.detalleProcesos).reduce(
+          (m: any, [nombre, stat]: any) => {
+            m[normalize(nombre)] = { nombre, stat };
+            return m;
+          },
+          {} as Record<string, { nombre: string; stat: any }>,
+        );
 
-      const orderedProcesos: Record<string, any> = {};
-      // Agregar procesos en el orden deseado
-      desiredOrder.forEach((d) => {
-        const key = normalize(d);
-        if (procMap[key]) {
-          const { nombre, stat } = procMap[key];
+        const orderedProcesos: Record<string, any> = {};
+        // Agregar procesos en el orden deseado
+        desiredOrder.forEach((d) => {
+          const key = normalize(d);
+          if (procMap[key]) {
+            const { nombre, stat } = procMap[key];
+            orderedProcesos[nombre] = stat;
+            delete procMap[key];
+          }
+        });
+
+        // Agregar el resto en orden alfabético
+        const remaining = Object.values(procMap).sort((a: any, b: any) =>
+          a.nombre.localeCompare(b.nombre),
+        );
+        remaining.forEach(({ nombre, stat }: any) => {
           orderedProcesos[nombre] = stat;
-          delete procMap[key];
-        }
-      });
+        });
 
-      // Agregar el resto en orden alfabético
-      const remaining = Object.values(procMap).sort((a: any, b: any) =>
-        a.nombre.localeCompare(b.nombre),
-      );
-      remaining.forEach(({ nombre, stat }: any) => {
-        orderedProcesos[nombre] = stat;
-      });
+        const procesos: ProcessCard[] = Object.entries(orderedProcesos).map(
+          ([nombre, stat]: [string, any]) => ({
+            id: nombre,
+            name: nombre,
+            completed: stat.actual,
+            total: stat.meta,
+            estimated: formatDuration(stat.estimado),
+            real: formatDuration(stat.real),
+          }),
+        );
 
-      const procesos: ProcessCard[] = Object.entries(orderedProcesos).map(
-        ([nombre, stat]: [string, any]) => ({
-          id: nombre,
-          name: nombre,
-          completed: stat.actual,
-          total: stat.meta,
-          estimated: formatDuration(stat.estimado),
-          real: formatDuration(stat.real),
-        }),
-      );
+        return {
+          id,
+          code: stats.nombre,
+          estimatedTotal: formatDuration(Math.round(stats.totalEstimado)),
+          realTotal: formatDuration(Math.round(stats.totalReal)),
+          progressPct: pct,
+          processes: procesos,
+        } as ProjectCard;
+      },
+    );
 
-      return {
-        id,
-        code: stats.nombre,
-        estimatedTotal: formatDuration(Math.round(stats.totalEstimado)),
-        realTotal: formatDuration(Math.round(stats.totalReal)),
-        progressPct: pct,
-        processes: procesos,
-      } as ProjectCard;
+    return [...result].sort((a, b) => {
+      if (sortBy === "urgency") {
+        // Menor progreso primero (Atención inmediata)
+        return a.progressPct - b.progressPct;
+      }
+      if (sortBy === "progress") {
+        // Mayor progreso primero (Cerca de terminar)
+        return b.progressPct - a.progressPct;
+      }
+      if (sortBy === "name") {
+        // Alfabético
+        return a.code.localeCompare(b.code);
+      }
+      return 0;
     });
   }, [data, tick]);
 
@@ -227,7 +248,7 @@ export default function ProyectosPage() {
             <div
               className={cn(
                 "flex items-center gap-2 text-[12px] font-bold text-blue-600 transition-all duration-500",
-                isRefetching
+                isRefetching || loading
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 -translate-y-1",
               )}
@@ -236,10 +257,31 @@ export default function ProyectosPage() {
               <span>Sincronizando datos en vivo...</span>
             </div>
           </div>
-          <p className="mt-1 text-sm text-neutral-600">
-            Visualizacion en tiempo real de avance y metricas de tiempo por
-            proyecto.
-          </p>
+          <div className="flex w-full items-center justify-between">
+            <p className="mt-1 text-sm text-neutral-600">
+              Visualizacion en tiempo real de avance y metricas de tiempo por
+              proyecto.
+            </p>
+            <div className="flex items-center gap-2 float-right">
+              <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+                <FilterButton
+                  active={sortBy === "urgency"}
+                  label="Urgencia (0-100%)"
+                  onClick={() => setSortBy("urgency")}
+                />
+                <FilterButton
+                  active={sortBy === "progress"}
+                  label="Avance (100-0%)"
+                  onClick={() => setSortBy("progress")}
+                />
+                <FilterButton
+                  active={sortBy === "name"}
+                  label="Nombre"
+                  onClick={() => setSortBy("name")}
+                />
+              </div>
+            </div>
+          </div>
         </header>
 
         <div className="space-y-5">
@@ -259,13 +301,9 @@ export default function ProyectosPage() {
 }
 
 function getProjectAccentClass(project: ProjectCard) {
-  const processPcts = project.processes.map((p) =>
-    p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0,
-  );
-  const minPct = Math.min(...processPcts);
-
-  if (minPct < 40) return "bg-red-500";
-  if (minPct < 80) return "bg-orange-500";
+  const progress = project.progressPct;
+  if (progress < 30) return "bg-red-500";
+  if (progress < 90) return "bg-orange-500";
   return "bg-emerald-500";
 }
 
@@ -376,5 +414,29 @@ function ProgressBar({
         style={{ width: `${safeValue}%` }}
       />
     </div>
+  );
+}
+
+function FilterButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
+        active
+          ? "bg-white text-blue-600 shadow-sm"
+          : "text-neutral-500 hover:text-neutral-700",
+      )}
+    >
+      {label}
+    </button>
   );
 }

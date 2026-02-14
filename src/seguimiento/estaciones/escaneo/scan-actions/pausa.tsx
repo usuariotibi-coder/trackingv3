@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { Button } from "@/components/ui/button";
@@ -14,46 +14,59 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 interface AccionPausaProps {
-  procesoEspecifico: {
-    id: string;
-    estado: string;
-  };
+  sesionId: string;
+  pausas: Array<{ id: string; horaFin: string | null }>;
   onActionSuccess: () => void;
+  onPausaChange?: (pausado: boolean) => void;
 }
 
-const REGISTRAR_OBS = gql`
-  mutation RegistrarObs($id: ID!, $tipo: String!, $desc: String!) {
-    registrarObservacion(
-      procesoOpId: $id
-      tipoRegistro: $tipo
-      descripcion: $desc
+const REGISTRAR_PAUSA = gql`
+  mutation RegistrarPausa(
+    $sesionId: ID!
+    $tipoRegistro: TipoRegistroPausa!
+    $motivo: String
+  ) {
+    registrarPausaSesion(
+      sesionId: $sesionId
+      tipoRegistro: $tipoRegistro
+      motivo: $motivo
     ) {
       id
-      estado
+      pausas {
+        id
+        horaInicio
+        horaFin
+        motivo
+      }
     }
   }
 `;
 
 export function AccionPausa({
-  procesoEspecifico,
+  sesionId,
+  pausas,
   onActionSuccess,
+  onPausaChange,
 }: AccionPausaProps) {
   const [open, setOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
-  const [registrar] = useMutation(REGISTRAR_OBS);
+  const [registrarPausa] = useMutation(REGISTRAR_PAUSA);
 
-  const esPausa = procesoEspecifico.estado !== "paused";
+  // Determinar si el estado actual es "EN PAUSA"
+  const estaEnPausa = useMemo(() => {
+    return pausas.some((p) => p.horaFin === null);
+  }, [pausas]);
 
-  const handleConfirm = async () => {
+  const handlePausa = async () => {
     try {
-      await registrar({
+      await registrarPausa({
         variables: {
-          id: procesoEspecifico.id, // Usamos el ID del objeto pasado
-          tipo: esPausa ? "PAUSA_INICIO" : "PAUSA_FIN",
-          desc: motivo,
+          sesionId: sesionId,
+          tipoRegistro: estaEnPausa ? "FIN" : "INICIO",
+          motivo: motivo,
         },
       });
-      toast.success(esPausa ? "Pausa iniciada" : "Proceso reanudado");
+      toast.success(estaEnPausa ? "Trabajo reanudado" : "Sesión pausada");
       setOpen(false);
       setMotivo("");
       onActionSuccess();
@@ -62,31 +75,49 @@ export function AccionPausa({
     }
   };
 
+  useEffect(() => {
+    if (onPausaChange) {
+      onPausaChange(estaEnPausa);
+    }
+  }, [estaEnPausa, onPausaChange]);
+
   return (
     <>
       <Button
         variant="outline"
-        className={`w-full ${esPausa ? "text-orange-600" : "text-green-600"}`}
+        className={`w-full ${estaEnPausa ? "bg-orange-50 text-orange-600 border-orange-200" : ""}`}
         onClick={() => setOpen(true)}
       >
         <PauseCircle className="mr-2 h-4 w-4" />
-        {esPausa ? "Pausar" : "Reanudar"}
+        {estaEnPausa ? "Finalizar Pausa" : "Pausar Sesión"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {esPausa ? "Iniciar Pausa" : "Finalizar Pausa"}
+              {estaEnPausa
+                ? "Confirmar Reanudación"
+                : "Iniciar Pausa de Trabajo"}
             </DialogTitle>
           </DialogHeader>
-          <Textarea
-            placeholder="Describa el motivo..."
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
+
+          {/* Solo pedimos motivo si se va a INICIAR una pausa */}
+          {!estaEnPausa && (
+            <Textarea
+              placeholder="Describa el motivo de la pausa (ej. Ajuste de máquina)..."
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          )}
+
           <DialogFooter>
-            <Button onClick={handleConfirm}>Confirmar</Button>
+            <Button
+              onClick={handlePausa}
+              className={estaEnPausa ? "bg-green-600" : "bg-orange-600"}
+            >
+              {estaEnPausa ? "Reanudar Ahora" : "Pausar Ahora"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -31,19 +31,29 @@ type Machine = {
   area: string;
 };
 
-type GetProcesosOperacionQuery = {
-  procesosOperacion: Array<{
+type GetMonitoreoMaquinasQuery = {
+  maquinas: Array<{
     id: string;
-    operacion: { operacion: string };
-    maquina: { nombre: string } | null;
-    usuario: {
-      nombre: string;
-      area: { nombre: string };
-    } | null;
+    nombre: string;
     proceso: { nombre: string } | null;
-    estado: string;
-    tiempoEstimado: number;
-    horaInicio?: string | null;
+    sesionActual: {
+      // <-- Cambiado de Array a objeto único
+      id: string;
+      horaInicio?: string | null;
+      usuario?: { nombre: string } | null;
+      procesoOp?: {
+        conteoActual?: number | null;
+        tiempoEstimado?: number | null;
+        operacion?: {
+          operacion?: string | null;
+          workorder?: {
+            plano?: string | null;
+            cantidad?: number | null;
+          } | null;
+        } | null;
+      } | null;
+      pausas: Array<{ id: string; horaFin: string | null }>;
+    } | null;
   }>;
 };
 
@@ -105,7 +115,7 @@ function statusColor(machine: Machine) {
 
   // running -> thresholds por TEF
   const elapsed = minsSince(machine.startedAt);
-  const X = machine.cycleTargetMin ?? 30;
+  const X = machine.cycleTargetMin ?? 0;
   const level = getTimingLevel(elapsed, X);
   if (level === "over_50_plus")
     return {
@@ -140,44 +150,47 @@ function statusColor(machine: Machine) {
   };
 }
 
-// -------------------------------
-// -------------------------------
-// Componente principal de página
-// -------------------------------
 export default function MaquinasDashboardPage() {
   const GET_DATOS = gql`
-    query GetProcesosOperacion {
-      procesosOperacion {
+    query GetMonitoreoMaquinas {
+      maquinas {
         id
-        operacion {
-          operacion
-        }
-        maquina {
-          nombre
-        }
-        usuario {
-          nombre
-          area {
-            nombre
-          }
-        }
+        nombre
         proceso {
           nombre
         }
-        estado
-        tiempoEstimado
-        horaInicio
+        sesionActual {
+          id
+          horaInicio
+          usuario {
+            nombre
+          }
+          procesoOp {
+            tiempoEstimado
+            tiempoRealCalculado
+            conteoActual
+            operacion {
+              operacion
+              workorder {
+                plano
+                cantidad
+              }
+            }
+          }
+          pausas {
+            id
+            horaFin
+          }
+        }
       }
     }
   `;
 
-  const { data, refetch, networkStatus } = useQuery<GetProcesosOperacionQuery>(
-    GET_DATOS,
-    {
+  const { data, loading, refetch, networkStatus } =
+    useQuery<GetMonitoreoMaquinasQuery>(GET_DATOS, {
       notifyOnNetworkStatusChange: true,
       fetchPolicy: "cache-and-network",
-    },
-  );
+    });
 
   const isRefetching = networkStatus === NetworkStatus.refetch;
   const [q, setQ] = useState("");
@@ -197,27 +210,29 @@ export default function MaquinasDashboardPage() {
   }, []);
 
   const machines = useMemo(() => {
-    if (!data?.procesosOperacion) return [];
-    const activeStatuses = ["in_progress", "paused", "maintenance", "idle"];
-    return data.procesosOperacion
-      .filter(
-        (item) =>
-          item?.maquina?.nombre &&
-          activeStatuses.includes(item.estado?.toLowerCase() || "idle"),
-      )
-      .map((item) => ({
-        id: item.id,
-        name: item.maquina!.nombre,
-        piece: item.operacion?.operacion || null,
-        operator: item.usuario?.nombre || null,
-        status: (item.estado.toLowerCase() === "in_progress"
-          ? "running"
-          : item.estado.toLowerCase()) as MachineStatus,
-        startedAt: item.horaInicio || null,
-        cycleTargetMin: item.tiempoEstimado,
-        operationId: item.operacion?.operacion || "S/N",
-        area: item.usuario?.area?.nombre || "General",
-      }));
+    if (!data?.maquinas) return [];
+    return data.maquinas.map((mc) => {
+      // `sesionActual` viene como un objeto único o null (sesión activa)
+      const activeSession = mc.sesionActual ?? null;
+      const isPaused = !!activeSession?.pausas?.some((p) => p.horaFin == null);
+      const status: MachineStatus = activeSession
+        ? isPaused
+          ? "paused"
+          : "running"
+        : "idle";
+
+      return {
+        id: mc.id,
+        name: mc.nombre,
+        piece: activeSession?.procesoOp?.operacion?.operacion || null,
+        operator: activeSession?.usuario?.nombre || null,
+        status,
+        startedAt: activeSession?.horaInicio || null,
+        cycleTargetMin: activeSession?.procesoOp?.tiempoEstimado ?? undefined,
+        operationId: activeSession?.procesoOp?.operacion?.operacion || "S/N",
+        area: mc.proceso?.nombre || "General",
+      };
+    });
   }, [data, tick]);
 
   // Filtrado
@@ -246,7 +261,7 @@ export default function MaquinasDashboardPage() {
             <div
               className={cn(
                 "flex items-center gap-2 text-[12px] font-bold text-blue-600 transition-all duration-500",
-                isRefetching
+                isRefetching || loading
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 -translate-y-1",
               )}
@@ -314,10 +329,10 @@ function LegendDot({ className, label }: { className: string; label: string }) {
 
 function MachineCard({ m }: { m: Machine }) {
   const elapsed = minsSince(m.startedAt);
-  const X = m.cycleTargetMin ?? 30;
+  const X = m.cycleTargetMin ?? 0;
   const pct = barPct(elapsed, X);
   const color = statusColor(m);
-  const exceededMin = Math.max(0, elapsed - X);
+  const exceededMin = X > 0 ? Math.max(0, elapsed - X) : 0;
   const timingLevel = getTimingLevel(elapsed, X);
 
   return (
@@ -387,7 +402,11 @@ function MachineCard({ m }: { m: Machine }) {
             />
           }
         >
-          {formatDuration(X)}
+          {X > 0 ? (
+            formatDuration(X)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </Row>
 
         {m.status === "running" && X > 0 && (
