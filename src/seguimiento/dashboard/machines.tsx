@@ -199,6 +199,17 @@ export default function MaquinasDashboardPage() {
   );
   const [tick, setTick] = useState(0);
 
+  const desiredOrder = [
+    "corte",
+    "escuadre",
+    "programacion cnc",
+    "maquinado cnc",
+    "paileria",
+    "pintura",
+    "calidad",
+    "almacen",
+  ];
+
   useEffect(() => {
     const t = setInterval(() => refetch(), 30000);
     return () => clearInterval(t);
@@ -211,8 +222,18 @@ export default function MaquinasDashboardPage() {
 
   const machines = useMemo(() => {
     if (!data?.maquinas) return [];
-    return data.maquinas.map((mc) => {
-      // `sesionActual` viene como un objeto único o null (sesión activa)
+
+    // Función de normalización idéntica a la que usas en Proyectos
+    const normalize = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const mapped = data.maquinas.map((mc) => {
       const activeSession = mc.sesionActual ?? null;
       const isPaused = !!activeSession?.pausas?.some((p) => p.horaFin == null);
       const status: MachineStatus = activeSession
@@ -233,6 +254,26 @@ export default function MaquinasDashboardPage() {
         area: mc.proceso?.nombre || "General",
       };
     });
+
+    // ORDENAR: Basado en desiredOrder
+    return [...mapped].sort((a, b) => {
+      const indexA = desiredOrder.findIndex(
+        (d) => normalize(d) === normalize(a.area),
+      );
+      const indexB = desiredOrder.findIndex(
+        (d) => normalize(d) === normalize(b.area),
+      );
+
+      // Si no se encuentra en la lista (index -1), se manda al final
+      const posA = indexA === -1 ? 999 : indexA;
+      const posB = indexB === -1 ? 999 : indexB;
+
+      // Si están en la misma área, ordenar alfabéticamente por nombre de máquina
+      if (posA === posB) {
+        return a.name.localeCompare(b.name);
+      }
+      return posA - posB;
+    });
   }, [data, tick]);
 
   // Filtrado
@@ -249,6 +290,42 @@ export default function MaquinasDashboardPage() {
       return okStatus && okTerm;
     });
   }, [machines, q, statusFilter]);
+
+  const groupedMachines = useMemo(() => {
+    const normalize = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    // 1. Agrupamos las máquinas filtradas por su área normalizada
+    const groups: Record<string, typeof filtered> = {};
+
+    filtered.forEach((m) => {
+      const key = normalize(m.area);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(m);
+    });
+
+    // 2. Ordenamos las máquinas alfabéticamente dentro de cada grupo
+    Object.keys(groups).forEach((key) => {
+      groups[key].sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    return groups;
+  }, [filtered]);
+
+  const normalize = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
@@ -305,10 +382,56 @@ export default function MaquinasDashboardPage() {
           <LegendDot className="bg-orange-500" label="Pausado" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {filtered.map((m) => (
-            <MachineCard key={m.id} m={m} />
-          ))}
+        <div className="space-y-10">
+          {desiredOrder.map((areaName) => {
+            const key = normalize(areaName);
+            const machinesInArea = groupedMachines[key];
+
+            // Si no hay máquinas en esta área con los filtros actuales, no mostramos la sección
+            if (!machinesInArea || machinesInArea.length === 0) return null;
+
+            return (
+              <section key={key} className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-400">
+                    {areaName}
+                  </h2>
+                  <div className="h-px flex-1 bg-neutral-200" />
+                  <Badge variant="outline" className="text-neutral-400">
+                    {machinesInArea.length}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                  {machinesInArea.map((m) => (
+                    <MachineCard key={m.id} m={m} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+
+          {/* Sección para máquinas que no están en el desiredOrder */}
+          {Object.keys(groupedMachines).some(
+            (k) => !desiredOrder.map(normalize).includes(k),
+          ) && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-400">
+                  Otros Procesos
+                </h2>
+                <div className="h-px flex-1 bg-neutral-200" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                {Object.entries(groupedMachines)
+                  .filter(([k]) => !desiredOrder.map(normalize).includes(k))
+                  .flatMap(([_, machines]) => machines)
+                  .map((m) => (
+                    <MachineCard key={m.id} m={m} />
+                  ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>
