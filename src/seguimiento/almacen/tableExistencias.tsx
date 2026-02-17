@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search, PackageMinus, AlertCircle, Download } from "lucide-react";
 import * as XLSX from "xlsx";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import { Button } from "@/components/ui/button";
 
 interface ExistenciaOperacion {
@@ -104,7 +104,15 @@ export function TableExistencias({ onSelectAction }: TableProps) {
       `Inventario_Tracking_${new Date().toISOString().split("T")[0]}.xlsx`,
     );
 
-    toast.success("Archivo Excel generado con éxito");
+    sileo.success({
+      title: "Archivo Excel generado con éxito",
+      duration: 3000,
+      fill: "black",
+      styles: {
+        title: "text-white!",
+      },
+      position: "top-center",
+    });
   };
 
   if (loading)

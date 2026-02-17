@@ -3,6 +3,7 @@ import { gql, NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sileo } from "sileo";
 
 type ProcessCard = {
   id: string;
@@ -230,24 +231,30 @@ export default function ProyectosPage() {
     });
   }, [data, tick, sortBy]);
 
+  useEffect(() => {
+    if (isRefetching || loading) {
+      sileo.info({
+        duration: 3000,
+        title: "Actualizando",
+        icon: (
+          <RefreshCw className="flex items-center justify-center h-4 w-4 animate-spin" />
+        ),
+        description: "Sincronizando datos en vivo...",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
+    }
+  }, [isRefetching, loading]);
+
   return (
     <div className="min-h-screen bg-white px-5 py-10 text-neutral-900 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <h1 className="text-3xl font-semibold tracking-tight">Proyectos</h1>
-          <div className="h-4">
-            <div
-              className={cn(
-                "flex items-center gap-2 text-[12px] font-bold text-blue-600 transition-all duration-500",
-                isRefetching || loading
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 -translate-y-1",
-              )}
-            >
-              <RefreshCw className="h-3 w-3 animate-spin" />
-              <span>Sincronizando datos en vivo...</span>
-            </div>
-          </div>
           <div className="flex w-full items-center justify-between">
             <p className="mt-1 text-sm text-neutral-600">
               Visualizacion en tiempo real de avance y metricas de tiempo por

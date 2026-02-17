@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 
 const CREAR_INDIRECTO = gql`
   mutation CrearIndirecto($uId: ID!, $motivo: String!) {
@@ -37,13 +37,44 @@ export function AccionIndirecto({
   const [crear] = useMutation(CREAR_INDIRECTO);
 
   const handleConfirm = async () => {
-    if (!usuarioId) return toast.error("Identifique al operario primero");
+    if (!usuarioId)
+      return sileo.error({
+        duration: 3000,
+        title: "Error",
+        description: "Identifique al operario primero",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     try {
       await crear({ variables: { uId: usuarioId, motivo } });
-      toast.success(`Tiempo indirecto iniciado: ${motivo}`);
+      sileo.success({
+        duration: 3000,
+        title: "Tiempo indirecto iniciado",
+        description: `Actividad registrada: ${motivo}`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setOpen(false);
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar tiempo indirecto",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

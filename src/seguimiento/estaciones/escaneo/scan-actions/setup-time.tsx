@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation } from "@apollo/client/react";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -84,13 +84,31 @@ export function AccionSetup({
     const maquinadoId = data?.procesoOpPorOperacionYProceso?.id;
 
     if (!maquinadoId) {
-      return toast.error(
-        "❌ No se encontró el proceso de Maquinado para asignar el setup.",
-      );
+      return sileo.error({
+        duration: 3000,
+        title: "No se encontró el proceso de Maquinado",
+        description: "No se pudo asignar el tiempo de setup.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
 
     if (isNaN(valorSetup) || valorSetup < 0) {
-      return toast.error("⚠️ Ingrese un tiempo de setup válido.");
+      return sileo.error({
+        duration: 3000,
+        title: "Tiempo de setup inválido",
+        description: "Ingrese un tiempo de setup válido.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
 
     setLoading(true);
@@ -103,11 +121,31 @@ export function AccionSetup({
         },
       });
 
-      toast.success("✅ Setup asignado a Maquinado y Programación finalizada.");
+      sileo.success({
+        duration: 3000,
+        title: "✅ Setup asignado a Maquinado",
+        description: "Programación finalizada.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setIsOpen(false);
       onSuccess();
     } catch (e: any) {
-      toast.error("Error: " + e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al asignar setup",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     } finally {
       setLoading(false);
     }

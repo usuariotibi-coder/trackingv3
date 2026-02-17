@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import { cn } from "@/lib/utils";
 
 interface Proceso {
@@ -134,9 +134,13 @@ export function FormularioMovimiento({
   const ejecutarAccion = async () => {
     // VALIDACIÓN CRÍTICA PARA BAJA
     if (tipo === "SALIDA" && cantidad > stockDisponible) {
-      return toast.error(
-        "Error: No hay suficiente stock para realizar la salida.",
-      );
+      return sileo.error({
+        title: "Error: No hay suficiente stock para realizar la salida.",
+        duration: 3000,
+        fill: "black",
+        styles: { title: "text-white!" },
+        position: "top-center",
+      });
     }
 
     try {
@@ -149,10 +153,22 @@ export function FormularioMovimiento({
         },
         refetchQueries: ["GetWODetalle", "GetExistenciasTotales"],
       });
-      toast.success("Movimiento registrado con éxito");
+      sileo.success({
+        title: "Movimiento registrado con éxito",
+        duration: 3000,
+        fill: "black",
+        styles: { title: "text-white!" },
+        position: "top-center",
+      });
       setCantidad(1);
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        title: e.message,
+        duration: 3000,
+        fill: "black",
+        styles: { title: "text-white!" },
+        position: "top-center",
+      });
     }
   };
 

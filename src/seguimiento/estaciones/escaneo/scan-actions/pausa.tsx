@@ -11,7 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 
 interface AccionPausaProps {
   sesionId: string;
@@ -66,12 +66,32 @@ export function AccionPausa({
           motivo: motivo,
         },
       });
-      toast.success(estaEnPausa ? "Trabajo reanudado" : "Sesión pausada");
+      sileo.success({
+        duration: 3000,
+        title: estaEnPausa ? "Trabajo reanudado" : "Sesión pausada",
+        description: "",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setOpen(false);
       setMotivo("");
       onActionSuccess();
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar pausa",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

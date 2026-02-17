@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import { ScanLine, CheckCircle2, Camera, Upload } from "lucide-react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
@@ -49,9 +49,29 @@ export default function EstacionMaquinado() {
       if (!obj?.op) throw new Error("QR sin campo 'op'");
       setPayload(obj);
       setRaw(text);
-      toast.success("QR leído correctamente");
+      sileo.success({
+        duration: 3000,
+        title: "QR leído correctamente",
+        description: "",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     } catch (e: any) {
-      toast.error("No pude leer el QR como JSON válido");
+      sileo.error({
+        duration: 3000,
+        title: "Error al leer QR",
+        description: "No pude leer el QR como JSON válido",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       console.error(e);
     }
   }
@@ -69,9 +89,17 @@ export default function EstacionMaquinado() {
         },
       };
       if (!body.op) {
-        toast.error(
-          "Falta el número de operación (OP). Escanea el QR o escribe la OP manual.",
-        );
+        sileo.error({
+          duration: 3000,
+          title: "Falta el número de operación (OP)",
+          description: "Escanea el QR o escribe la OP manual.",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         return;
       }
 
@@ -82,9 +110,29 @@ export default function EstacionMaquinado() {
       });
       if (!res.ok) throw new Error(await res.text());
 
-      toast.success(`Llegada registrada en Maquinado para ${body.op}`);
+      sileo.success({
+        duration: 3000,
+        title: "✅ Llegada registrada",
+        description: `Llegada registrada en Maquinado para ${body.op}`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     } catch (e: any) {
-      toast.error("No se pudo registrar la llegada");
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar llegada",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       console.error(e);
     }
   }

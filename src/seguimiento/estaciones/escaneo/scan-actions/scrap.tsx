@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 
 const REGISTRAR_SCRAP = gql`
   mutation RegistrarScrapCritico(
@@ -48,7 +48,18 @@ export function AccionScrap({
   const [registrar] = useMutation(REGISTRAR_SCRAP);
 
   const handleConfirm = async () => {
-    if (motivo.length < 5) return toast.error("Detalle el motivo del scrap.");
+    if (motivo.length < 5)
+      return sileo.error({
+        duration: 3000,
+        title: "Motivo insuficiente",
+        description: "Detalle el motivo del scrap.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
 
     try {
       await registrar({
@@ -58,11 +69,31 @@ export function AccionScrap({
           motivo,
         },
       });
-      toast.error("Proceso detenido por SCRAP");
+      sileo.warning({
+        duration: 3000,
+        title: "Proceso detenido por SCRAP",
+        description: "",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setOpen(false);
       onActionSuccess();
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar scrap",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

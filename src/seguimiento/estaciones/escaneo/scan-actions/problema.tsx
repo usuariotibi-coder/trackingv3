@@ -11,7 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 
 interface RegistrarObsData {
   registrarObservacionSesion: {
@@ -51,13 +51,33 @@ export function AccionProblema({
 
       // Verificamos si existe la respuesta y el ID antes de proceder
       if (res.data?.registrarObservacionSesion?.id) {
-        toast.warning("Problema reportado en bitácora");
+        sileo.warning({
+          duration: 3000,
+          title: "Problema reportado en bitácora",
+          description: "",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         setOpen(false);
         setDesc("");
         onActionSuccess();
       }
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al reportar problema",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

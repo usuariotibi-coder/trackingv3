@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
-import { toast } from "sonner";
-import { Clock } from "lucide-react";
+import { sileo } from "sileo";
+import { CheckCircle2, Clock } from "lucide-react";
 
 // Componentes UI
 import {
@@ -245,11 +245,33 @@ export default function ScanStation() {
   const [registrarSesion] = useMutation<RegistrarSesionRes>(INICIAR_SESION, {
     onCompleted: (data) => {
       console.log("Resultado:", data?.registrarSesionTrabajo);
-      toast.success("Pieza registrada con éxito");
+      sileo.success({
+        duration: 3000,
+        icon: (
+          <CheckCircle2 className="flex items-center justify-center h-4 w-4 animate-spin" />
+        ),
+        title: "Pieza registrada con éxito",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setSesionId(data?.registrarSesionTrabajo.id || "");
     },
     onError: (error) => {
-      toast.error(error.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar la pieza",
+        description: error.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     },
   });
 
@@ -267,7 +289,16 @@ export default function ScanStation() {
   useEffect(() => {
     if (data?.sesionActivaPorNomina) {
       setSesionId(data.sesionActivaPorNomina.id);
-      toast.info("Sesión activa recuperada automáticamente");
+      sileo.info({
+        duration: 3000,
+        title: "Sesión activa recuperada automáticamente",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   }, [data]);
 
@@ -311,11 +342,30 @@ export default function ScanStation() {
             desc: "Reanudado desde panel principal",
           },
         });
-        toast.success("▶️ Proceso reanudado");
+        sileo.success({
+          duration: 3000,
+          title: "Proceso reanudado",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         refetchP();
         return;
       } catch (e: any) {
-        toast.error(e.message);
+        sileo.error({
+          duration: 3000,
+          title: "Error al reanudar proceso",
+          description: e.message,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         return;
       }
     }
@@ -340,7 +390,16 @@ export default function ScanStation() {
       if (procesoEspecifico.proceso.id === "3") {
         setIsFinalizeModalOpen(true);
       } else {
-        toast.error("Esta orden ya está completa.");
+        sileo.error({
+          duration: 3000,
+          title: "Esta orden ya está completa.",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
       }
       return;
     }
@@ -361,20 +420,58 @@ export default function ScanStation() {
 
       // 2. Lógica de mensajes y apertura de modal
       if (nuevoConteo === 0) {
-        toast.success("Sesión iniciada.");
+        sileo.success({
+          duration: 3000,
+          title: "Sesión iniciada",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
       } else if (nuevoConteo >= meta) {
-        toast.success("¡Orden completada!");
+        sileo.success({
+          duration: 3000,
+          title: "¡Orden completada!",
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         // Solo disparamos el modal si es el proceso de Programación (ID 3)
         if (procesoEspecifico.proceso.id === "3") {
           setIsFinalizeModalOpen(true);
         }
       } else {
-        toast.info(`Pieza registrada: ${nuevoConteo} / ${meta}`);
+        sileo.info({
+          duration: 3000,
+          title: "Pieza registrada",
+          description: `${nuevoConteo} / ${meta}`,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75! text-center",
+          },
+          position: "top-center",
+        });
       }
 
       refetchP();
     } catch (e: any) {
-      toast.error(e.message);
+      sileo.error({
+        duration: 3000,
+        title: "Error al registrar pieza",
+        description: e.message,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

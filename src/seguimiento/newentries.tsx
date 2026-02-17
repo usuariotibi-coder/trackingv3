@@ -33,7 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 
 // --- Definiciones de tipos y MOCKS de datos ---
 type Area = { id: number; nombre: string };
@@ -166,7 +166,17 @@ function CreateUserCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      toast.success(`Usuario '${userData.nombre}' creado exitosamente.`);
+      sileo.success({
+        duration: 3000,
+        title: "Usuario creado",
+        description: `Usuario '${userData.nombre}' creado exitosamente.`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setUserData({
         numero: "",
         nombre: "",
@@ -177,10 +187,19 @@ function CreateUserCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewUser);
-      toast.error(
-        errorNewUser?.message ||
-          "Hubo un problema de conexión al crear el usuario."
-      );
+      sileo.error({
+        duration: 3000,
+        title: "Error al crear usuario",
+        description:
+          errorNewUser?.message ||
+          "Hubo un problema de conexión al crear el usuario.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -341,7 +360,7 @@ function DeleteUserCard() {
     // Pedir confirmación antes de eliminar
     if (
       !window.confirm(
-        `¿Estás seguro de eliminar al usuario con número '${numeroToDelete}'? Esta acción es irreversible.`
+        `¿Estás seguro de eliminar al usuario con número '${numeroToDelete}'? Esta acción es irreversible.`,
       )
     ) {
       return;
@@ -355,24 +374,40 @@ function DeleteUserCard() {
       });
 
       if (data) {
-        toast.success(
-          `Usuario con número '${numeroToDelete}' eliminado exitosamente.`
-        );
+        sileo.success({
+          duration: 3000,
+          title: "Usuario eliminado",
+          description: `Usuario con número '${numeroToDelete}' eliminado exitosamente.`,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         setNumeroToDelete("");
       } else {
         // Esto captura el caso donde la mutación retorna 'false' (si el backend lo hiciera),
         // aunque el backend de Python debe lanzar una excepción si no lo encuentra.
         alert(
-          `Error: No se pudo eliminar el usuario con número '${numeroToDelete}'.`
+          `Error: No se pudo eliminar el usuario con número '${numeroToDelete}'.`,
         );
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      toast.error(
-        `Error al eliminar usuario: ${
+      sileo.error({
+        duration: 3000,
+        title: "Error al eliminar usuario",
+        description: `Error al eliminar usuario: ${
           errorDeleteUser?.message || "Hubo un problema de conexión."
-        }`
-      );
+        }`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -477,7 +512,17 @@ function CreateProjectCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      toast.success(`Proyecto '${projectData.nombre}' creado exitosamente.`);
+      sileo.success({
+        title: "Proyecto creado",
+        description: `Proyecto '${projectData.nombre}' creado exitosamente.`,
+        duration: 3000,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setProjectData({
         nombre: "",
         descripcion: "",
@@ -485,11 +530,19 @@ function CreateProjectCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewProyect);
-      toast.error(
-        `Error al crear proyecto: ${
+      sileo.error({
+        title: "Error al crear proyecto",
+        description: `Error al crear proyecto: ${
           errorNewProyect?.message || "Hubo un problema de conexión."
-        }`
-      );
+        }`,
+        duration: 3000,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -596,7 +649,7 @@ function DeleteProjectCard() {
     // Pedir confirmación antes de eliminar
     if (
       !window.confirm(
-        `¿Estás seguro de eliminar el proyecto '${projectNameToDelete}'? Esta acción eliminará también todas sus operaciones asociadas y es irreversible.`
+        `¿Estás seguro de eliminar el proyecto '${projectNameToDelete}'? Esta acción eliminará también todas sus operaciones asociadas y es irreversible.`,
       )
     ) {
       return;
@@ -610,22 +663,38 @@ function DeleteProjectCard() {
       });
 
       if (data) {
-        toast.success(
-          `Proyecto '${projectNameToDelete}' eliminado exitosamente.`
-        );
+        sileo.success({
+          title: "Proyecto eliminado",
+          description: `Proyecto '${projectNameToDelete}' eliminado exitosamente.`,
+          duration: 3000,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         setProjectNameToDelete("");
       } else {
         alert(
-          `Error: No se pudo eliminar el proyecto '${projectNameToDelete}'.`
+          `Error: No se pudo eliminar el proyecto '${projectNameToDelete}'.`,
         );
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      toast.error(
-        `Error al eliminar proyecto: ${
+      sileo.error({
+        title: "Error al eliminar proyecto",
+        description: `Error al eliminar proyecto: ${
           errorDeleteProject?.message || "Hubo un problema de conexión."
-        }`
-      );
+        }`,
+        duration: 3000,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -733,7 +802,17 @@ function CreateMachineCard() {
         },
       });
       // Mensaje de éxito/limpieza
-      toast.success(`Máquina '${machineData.nombre}' creada exitosamente.`);
+      sileo.success({
+        duration: 3000,
+        title: "Máquina creada",
+        description: `Máquina '${machineData.nombre}' creada exitosamente.`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       setMachineData({
         nombre: "",
         procesoId: "",
@@ -741,11 +820,19 @@ function CreateMachineCard() {
     } catch (e) {
       console.error(e);
       console.log(dataNewMachine);
-      toast.error(
-        `Error al crear máquina: ${
+      sileo.error({
+        duration: 3000,
+        title: "Error al crear máquina",
+        description: `Error al crear máquina: ${
           errorNewMachine?.message || "Hubo un problema de conexión."
-        }`
-      );
+        }`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -861,7 +948,7 @@ function DeleteMachineCard() {
     // Pedir confirmación antes de eliminar
     if (
       !window.confirm(
-        `¿Estás seguro de eliminar la máquina '${machineNameToDelete}'? Esta acción es irreversible.`
+        `¿Estás seguro de eliminar la máquina '${machineNameToDelete}'? Esta acción es irreversible.`,
       )
     ) {
       return;
@@ -875,22 +962,46 @@ function DeleteMachineCard() {
       });
 
       if (data) {
-        toast.success(
-          `Máquina '${machineNameToDelete}' eliminada exitosamente.`
-        );
+        sileo.success({
+          duration: 3000,
+          title: "Máquina eliminada",
+          description: `Máquina '${machineNameToDelete}' eliminada exitosamente.`,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         setMachineNameToDelete("");
       } else {
-        toast.error(
-          `Error: No se pudo eliminar la máquina '${machineNameToDelete}'.`
-        );
+        sileo.error({
+          duration: 3000,
+          title: "Error al eliminar",
+          description: `Error: No se pudo eliminar la máquina '${machineNameToDelete}'.`,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
       }
     } catch (e) {
       console.error("Error de eliminación:", e);
-      toast.error(
-        `Error al eliminar máquina: ${
+      sileo.error({
+        duration: 3000,
+        title: "Error al eliminar",
+        description: `Error al eliminar máquina: ${
           errorDeleteMachine?.message || "Hubo un problema de conexión."
-        }`
-      );
+        }`,
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     }
   };
 

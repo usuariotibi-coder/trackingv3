@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
+import { sileo } from "sileo";
 
 // -------------------------------
 // Tipos y utilidades
@@ -327,6 +328,25 @@ export default function MaquinasDashboardPage() {
       .replace(/\s+/g, " ")
       .trim();
 
+  useEffect(() => {
+    if (isRefetching || loading) {
+      sileo.info({
+        duration: 3000,
+        title: "Actualizando",
+        icon: (
+          <RefreshCw className="flex items-center justify-center h-4 w-4 animate-spin" />
+        ),
+        description: "Sincronizando datos en vivo...",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
+    }
+  }, [isRefetching, loading]);
+
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
       <div className="mx-auto max-w-7xl">
@@ -334,19 +354,6 @@ export default function MaquinasDashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             Dashboard de Máquinas
           </h1>
-          <div className="h-4">
-            <div
-              className={cn(
-                "flex items-center gap-2 text-[12px] font-bold text-blue-600 transition-all duration-500",
-                isRefetching || loading
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 -translate-y-1",
-              )}
-            >
-              <RefreshCw className="h-3 w-3 animate-spin" />
-              <span>Sincronizando datos en vivo...</span>
-            </div>
-          </div>
         </header>
 
         <div className="mb-6 flex flex-col md:flex-row gap-3">

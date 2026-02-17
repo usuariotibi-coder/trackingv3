@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import { Printer, QrCode, PlusCircle, Trash2, TimerReset } from "lucide-react";
 
 /**
@@ -227,9 +227,16 @@ export default function IntakeDePlanos() {
       });
     });
     if (key === 3 && enabled) {
-      toast.info(
-        "Se ha seleccionado automáticamente Maquinado CNC por dependencia.",
-      );
+      sileo.info({
+        duration: 3000,
+        title:
+          "Se ha seleccionado automáticamente Maquinado CNC por dependencia.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
+        position: "top-center",
+      });
     }
   };
 
@@ -275,7 +282,15 @@ export default function IntakeDePlanos() {
   const sugerirOperacion = () => {
     const sug = nuevaOperacionSugerida(noProyecto);
     setNoOperacion(sug);
-    toast.success("No. de operación sugerido generado");
+    sileo.success({
+      duration: 3000,
+      title: "No. de operación sugerido generado",
+      fill: "black",
+      styles: {
+        title: "text-white!",
+      },
+      position: "top-center",
+    });
   };
 
   const resetForm = () => {
@@ -388,7 +403,17 @@ export default function IntakeDePlanos() {
 
         setNoOperacion("");
 
-        toast.success(`Plano con QR (${filename}) descargado exitosamente`);
+        sileo.success({
+          duration: 3000,
+          title: "Plano con QR descargado exitosamente",
+          description: `El archivo ${filename} fue descargado.`,
+          fill: "black",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
+          position: "top-center",
+        });
         // resetForm(); // Opcional, descomentar si deseas limpiar el formulario inmediatamente
       } else {
         // Si no fue exitoso, el servidor probablemente envió JSON con errores
@@ -410,17 +435,45 @@ export default function IntakeDePlanos() {
               Object.values(errorData).flat().join(" | ") || errorMessage;
           }
 
-          toast.error(errorMessage);
+          sileo.error({
+            duration: 3000,
+            title: "Error al guardar",
+            description: errorMessage,
+            fill: "black",
+            styles: {
+              title: "text-white!",
+              description: "text-white/75!",
+            },
+            position: "top-center",
+          });
         } else {
           console.error("Error del servidor: Respuesta no es JSON.");
-          toast.error(
-            "Error al guardar: El servidor no devolvió una respuesta válida.",
-          );
+          sileo.error({
+            duration: 3000,
+            title: "Error al guardar",
+            description: "El servidor no devolvió una respuesta válida.",
+            fill: "black",
+            styles: {
+              title: "text-white!",
+              description: "text-white/75!",
+            },
+            position: "top-center",
+          });
         }
       }
     } catch (error) {
       console.error("Error de conexión:", error);
-      toast.error("Ocurrió un error de conexión.");
+      sileo.error({
+        duration: 3000,
+        title: "Error de conexión",
+        description: "Ocurrió un error de conexión al intentar guardar.",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -429,9 +482,18 @@ export default function IntakeDePlanos() {
   const onPrint = () => {
     handleSubmit();
     if (!noPlano || !noProyecto) {
-      toast.error(
-        "Completa al menos No. de Plano y No. de Proyecto antes de imprimir",
-      );
+      sileo.error({
+        duration: 3000,
+        title: "Error al imprimir",
+        description:
+          "Completa al menos No. de Plano y No. de Proyecto antes de imprimir",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+        position: "top-center",
+      });
       return;
     }
     window.print();
