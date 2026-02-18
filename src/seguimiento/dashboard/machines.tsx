@@ -585,7 +585,7 @@ function MachineCard({
                 </span>
               )}
               {timingLevel === "over_25" && (
-                <span>Superó TEF por {exceededMin}m</span>
+                <span>Superó TEF por {formatDuration(exceededMin)}m</span>
               )}
               {timingLevel === "over_50" && <span>Excedió 25% del TEF</span>}
               {timingLevel === "over_50_plus" && (
