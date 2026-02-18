@@ -41,6 +41,7 @@ type GetMonitoreoMaquinasQuery = {
       // <-- Cambiado de Array a objeto único
       id: string;
       horaInicio?: string | null;
+      tiempoEfectivo?: number | null;
       usuario?: { nombre: string } | null;
       procesoOp?: {
         conteoActual?: number | null;
@@ -163,6 +164,7 @@ export default function MaquinasDashboardPage() {
         sesionActual {
           id
           horaInicio
+          tiempoEfectivo
           usuario {
             nombre
           }
@@ -250,6 +252,7 @@ export default function MaquinasDashboardPage() {
         operator: activeSession?.usuario?.nombre || null,
         status,
         startedAt: activeSession?.horaInicio || null,
+        tiempoEfectivoServer: activeSession?.tiempoEfectivo || 0,
         cycleTargetMin: activeSession?.procesoOp?.tiempoEstimado ?? undefined,
         operationId: activeSession?.procesoOp?.operacion?.operacion || "S/N",
         area: mc.proceso?.nombre || "General",
@@ -416,7 +419,7 @@ export default function MaquinasDashboardPage() {
                 <div className="flex flex-wrap gap-3">
                   {machinesInArea.map((m) => (
                     <div key={m.id} className="w-[190px] h-[210px] flex-none">
-                      <MachineCard m={m} />
+                      <MachineCard m={m} tick={tick} />
                     </div>
                   ))}
                 </div>
@@ -440,7 +443,7 @@ export default function MaquinasDashboardPage() {
                   .flatMap(([_, machines]) => machines)
                   .map((m) => (
                     <div key={m.id} className="w-[190px] flex-none">
-                      <MachineCard m={m} />
+                      <MachineCard m={m} tick={tick} />
                     </div>
                   ))}
               </div>
@@ -464,8 +467,24 @@ function LegendDot({ className, label }: { className: string; label: string }) {
   );
 }
 
-function MachineCard({ m }: { m: Machine }) {
-  const elapsed = minsSince(m.startedAt);
+function MachineCard({
+  m,
+  tick,
+}: {
+  m: Machine & { tiempoEfectivoServer: number };
+  tick: number;
+}) {
+  const elapsed = useMemo(() => {
+    if (m.status === "paused") {
+      return m.tiempoEfectivoServer;
+    }
+
+    if (m.status === "running" && m.startedAt) {
+      return minsSince(m.startedAt);
+    }
+
+    return 0;
+  }, [m.status, m.tiempoEfectivoServer, m.startedAt, tick]);
   const X = m.cycleTargetMin ?? 0;
   const pct = barPct(elapsed, X);
   const color = statusColor(m);
@@ -508,7 +527,7 @@ function MachineCard({ m }: { m: Machine }) {
           )}
         </StackedRow>
         <Row label="Inicio">
-          {m.status === "running" && m.startedAt ? (
+          {(m.status === "running" || m.status === "paused") && m.startedAt ? (
             new Date(m.startedAt).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -525,7 +544,7 @@ function MachineCard({ m }: { m: Machine }) {
             />
           }
         >
-          {m.status === "running" ? (
+          {m.status === "running" || m.status === "paused" ? (
             formatDuration(elapsed)
           ) : (
             <span className="text-muted-foreground">—</span>
