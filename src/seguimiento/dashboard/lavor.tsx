@@ -265,16 +265,19 @@ export default function LavorPage() {
       "Fin",
       "Estimado (min)",
       "Real (min)",
+      "Diferencia (min)",
       "Eficiencia (%)",
       "Proceso",
       "Maquina",
       "Proyecto",
     ];
     const rows = filteredIntervals.map((itv) => {
+      const diff = itv.minutes - itv.tiempoEstimado;
       const ef =
         itv.minutes > 0
           ? Math.round((itv.tiempoEstimado / itv.minutes) * 100)
           : 0;
+
       return [
         formatTime(new Date(itv.start)),
         itv.end === new Date().toISOString()
@@ -282,6 +285,7 @@ export default function LavorPage() {
           : formatTime(new Date(itv.end)),
         itv.tiempoEstimado,
         itv.minutes,
+        diff, // Valor numérico para facilitar cálculos en Excel
         `${ef}%`,
         `"${itv.operacion}"`,
         `"${itv.maquinaNombre}"`,
@@ -481,6 +485,7 @@ export default function LavorPage() {
                   <TableHead className="text-center">Fin</TableHead>
                   <TableHead className="text-center">Estimado</TableHead>
                   <TableHead className="text-center">Real</TableHead>
+                  <TableHead className="text-center">Dif.</TableHead>
                   <TableHead className="text-center">Pausas</TableHead>
                   <TableHead className="text-center">Proceso</TableHead>
                 </TableRow>
@@ -491,6 +496,8 @@ export default function LavorPage() {
                     (acc, p) => acc + p.duracionMinutos,
                     0,
                   );
+                  const diff = itv.minutes - itv.tiempoEstimado;
+                  const isOver = diff > 0;
 
                   return (
                     <TableRow key={i}>
@@ -536,6 +543,22 @@ export default function LavorPage() {
                               </div>
                             )}
                         </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {itv.tiempoEstimado > 0 ? (
+                          <span
+                            className={cn(
+                              "font-mono text-xs font-bold",
+                              isOver ? "text-red-500" : "text-emerald-500",
+                            )}
+                          >
+                            {isOver
+                              ? `+${formatDuration(diff)}`
+                              : `-${formatDuration(Math.abs(diff))}`}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-center text-sm">
                         <div className="flex flex-row items-center justify-center gap-1">

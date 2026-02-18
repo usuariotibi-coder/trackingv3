@@ -88,7 +88,12 @@ interface SesionActivaData {
     id: string;
     procesoOp: {
       id: string;
-      codigo: string;
+      operacion: {
+        operacion: string;
+        workorder: {
+          plano: string;
+        } | null;
+      } | null;
     };
     maquina: {
       nombre: string;
@@ -183,6 +188,12 @@ const GET_SESION_ACTIVA = gql`
       id
       procesoOp {
         id
+        operacion {
+          operacion
+          workorder {
+            plano
+          }
+        }
       }
       maquina {
         nombre
@@ -616,6 +627,34 @@ export default function ScanStation() {
             ) : (
               <div className="text-center py-10 text-muted-foreground">
                 Escanee una orden para ver detalles
+              </div>
+            )}
+
+            {/* NUEVA SECCIÓN: Alerta de Sesión Olvidada */}
+            {data?.sesionActivaPorNomina && (
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-amber-600 animate-pulse" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">
+                      ¡Atención! Tienes una sesión abierta
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Máquina:{" "}
+                      <span className="font-bold">
+                        {data.sesionActivaPorNomina.maquina.nombre}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-amber-600 mt-1 uppercase">
+                      Pieza:
+                      {data.sesionActivaPorNomina.procesoOp.operacion?.workorder
+                        ?.plano || "N/A"}
+                      · OP:
+                      {data.sesionActivaPorNomina.procesoOp.operacion
+                        ?.operacion || "S/N"}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>

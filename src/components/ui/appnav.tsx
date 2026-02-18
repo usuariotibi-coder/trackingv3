@@ -11,6 +11,7 @@ const links = [
   { href: "/escaneo", label: "Escaneo" },
   { href: "/areas", label: "Areas" },
   { href: "/lavor", label: "Labor" },
+  { href: "/lavor-maquina", label: "Labor Maq." },
   { href: "/intake", label: "Planeación" },
   { href: "/almacen", label: "Almacen" },
   { href: "/administracion", label: "Administracion" },

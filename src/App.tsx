@@ -16,6 +16,7 @@ import LavorPage from "./seguimiento/dashboard/lavor";
 import GestionAlmacen from "./seguimiento/almacen/gestionAlmacen";
 import { ProtectedRoute } from "./ProtectedRoute";
 import AnalyticsAreasPage from "./seguimiento/dashboard/analytics-areas";
+import LavorMaquinaPage from "./seguimiento/dashboard/lavor-maquina";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
           <Route path="/pieza/:id" element={<PiezaDashboard />} />
           <Route path="/machines" element={<MaquinasDashboard />} />
           <Route path="/lavor" element={<LavorPage />} />
+          <Route path="/lavor-maquina" element={<LavorMaquinaPage />} />
           <Route path="/areas" element={<AnalyticsAreasPage />} />
 
           <Route path="/login" element={<LoginPage />} />
