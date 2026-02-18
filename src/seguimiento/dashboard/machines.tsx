@@ -560,7 +560,7 @@ function MachineCard({
           )}
         </Row>
 
-        {m.status === "running" && X > 0 && (
+        {(m.status === "running" || m.status === "paused") && X > 0 && (
           <div className="mt-2">
             <div className="h-1.5 w-full rounded-full bg-black/10 overflow-hidden">
               <div
