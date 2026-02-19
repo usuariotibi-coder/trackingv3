@@ -512,7 +512,6 @@ export default function LavorPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex flex-row items-center justify-center gap-2">
-                          {/* Tiempo Real */}
                           <span
                             className={cn(
                               "font-bold text-xs whitespace-nowrap",
@@ -525,15 +524,11 @@ export default function LavorPage() {
                           >
                             {formatDuration(itv.minutes)}
                           </span>
-
-                          {/* Badge de Alerta (< 2m) al lado */}
                           {itv.minutes >= 0 && itv.minutes < 2 && (
                             <div className="bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase shadow-sm border border-amber-600 flex-none">
                               ¡Revisar!
                             </div>
                           )}
-
-                          {/* Badge de Eficiencia al lado */}
                           {itv.minutes >= 2 &&
                             itv.minutes < itv.tiempoEstimado && (
                               <div className="bg-emerald-100 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight border border-emerald-200 flex-none">

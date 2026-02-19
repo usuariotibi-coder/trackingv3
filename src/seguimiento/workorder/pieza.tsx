@@ -37,9 +37,9 @@ import { Label } from "@/components/ui/label";
 type DisplayPaso = {
   key: string;
   label: string;
-  minutos: number; // Tiempo Estimado
+  minutos: number;
   estado: Estado;
-  tiempoReal: number | null; // Usaremos el tiempo real calculado
+  tiempoReal: number | null;
   tiempoSetup: number | null;
 };
 
@@ -55,7 +55,6 @@ interface ProcesoOperacion {
   tiempoRealCalculado: number | null; // Campo de GraphQL
 }
 
-// 💡 AJUSTE DE TIPO: Esperamos un objeto 'operacion' en la raíz
 interface OperacionQueryResult {
   operacion: {
     // Los campos de la operación en sí
@@ -95,7 +94,6 @@ function getEstadoOrder(estado: Estado): number {
   }
 }
 
-// ---------- Página ----------
 export default function PiezaDashboard() {
   const { id } = useParams();
 
@@ -137,12 +135,6 @@ export default function PiezaDashboard() {
 
   const operacion = data?.operacion;
 
-  // const showData = () => {
-  //   console.log(loading);
-  //   console.log(error);
-  //   console.log(data);
-  // };
-
   const displayProcesos: DisplayPaso[] = useMemo(() => {
     if (!operacion || !operacion.procesos) return [];
 
@@ -170,13 +162,11 @@ export default function PiezaDashboard() {
     ).length;
     const totalSteps = displayProcesos.length;
 
-    // Evita división por cero si no hay procesos
     const completedRatio =
       totalSteps > 0
         ? ((DONECount + inProgressCount * 0.5) / totalSteps) * 100
         : 0;
 
-    // --- CÁLCULO NUEVO: Tiempo estimado total ---
     const estimatedMinutes = displayProcesos.reduce((acc, p) => {
       return acc + p.minutos; // p.minutos es el tiempo estimado
     }, 0);
@@ -197,11 +187,10 @@ export default function PiezaDashboard() {
       totalSteps,
       completedRatio: Math.round(completedRatio),
       spentMinutes: Math.round(spentMinutes), // Tiempo REAL acumulado
-      estimatedMinutes: Math.round(estimatedMinutes), // Tiempo ESTIMADO total (NUEVO)
+      estimatedMinutes: Math.round(estimatedMinutes),
     };
   }, [displayProcesos]);
 
-  // Si no hay data para mostrar, se mantiene la UX de carga/error
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl p-6 text-center">
@@ -229,7 +218,6 @@ export default function PiezaDashboard() {
     );
   }
 
-  // Fallback si no encuentra la operación
   if (!operacion) {
     return (
       <div className="mx-auto max-w-6xl p-6">
@@ -245,7 +233,6 @@ export default function PiezaDashboard() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      {/* Header */}
       <div className="mb-6">
         <motion.h1
           initial={{ opacity: 0, y: 6 }}
@@ -260,7 +247,6 @@ export default function PiezaDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Resumen izquierda */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Resumen</CardTitle>
@@ -347,9 +333,7 @@ export default function PiezaDashboard() {
             <CardDescription>Estado actual y tiempos por etapa</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Timeline minimalista */}
             <ul className="relative ml-3 mb-6">
-              {/* Línea vertical */}
               <div className="absolute left-[10px] top-0 bottom-0 w-[2px] bg-border" />
               {displayProcesos.map((p) => {
                 let icon: React.ReactNode;
@@ -365,7 +349,7 @@ export default function PiezaDashboard() {
                   tone = "bg-amber-50 border-amber-200 text-amber-800";
                   badgeText = "En proceso";
                 } else if (p.estado === "scrap") {
-                  icon = <XCircle className="h-4 w-4" />; // Usar XCircle
+                  icon = <XCircle className="h-4 w-4" />;
                   tone = "bg-red-50 border-red-200 text-red-800";
                   badgeText = "Rechazo";
                 } else if (p.estado === "paused") {
@@ -412,7 +396,6 @@ export default function PiezaDashboard() {
 
             <Separator className="my-4" />
 
-            {/* Tabla de tiempos */}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -449,7 +432,7 @@ export default function PiezaDashboard() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {/* Fila de Total Global sin espacios en blanco adicionales */}
+
                 <TableRow className="border-t-2 border-primary/50 bg-neutral-50 dark:bg-neutral-900/50">
                   <TableCell />
                   <TableCell className="font-semibold">Total Global</TableCell>

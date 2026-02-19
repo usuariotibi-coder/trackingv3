@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Importamos los sub-componentes (los crearemos a continuación)
 import { TableExistencias } from "./tableExistencias";
 import { FormularioMovimiento } from "./movimientosAlmacen";
 
 export default function GestionAlmacen() {
-  // Estado compartido para que la búsqueda persista entre pestañas
   const [sharedPlano, setSharedPlano] = useState("");
   const [activeTab, setActiveTab] = useState("existencias");
 
@@ -20,7 +18,6 @@ export default function GestionAlmacen() {
         </TabsList>
 
         <TabsContent value="existencias">
-          {/* Pasamos las funciones para cambiar de pestaña y plano */}
           <TableExistencias
             onSelectAction={(plano) => {
               setSharedPlano(plano);

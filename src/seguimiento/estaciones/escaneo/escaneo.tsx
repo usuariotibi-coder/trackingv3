@@ -289,14 +289,12 @@ export default function ScanStation() {
   const [consultarSesion, { data }] =
     useLazyQuery<SesionActivaData>(GET_SESION_ACTIVA);
 
-  // Cada vez que el input de número de empleado cambie y tenga longitud válida (ej. 4 digitos)
   useEffect(() => {
     if (employeeId.length >= 4) {
       consultarSesion({ variables: { numero: employeeId } });
     }
   }, [employeeId]);
 
-  // Si el query nos devuelve una sesión, la guardamos
   useEffect(() => {
     if (data?.sesionActivaPorNomina) {
       setSesionId(data.sesionActivaPorNomina.id);
@@ -452,7 +450,6 @@ export default function ScanStation() {
           },
           position: "top-center",
         });
-        // Solo disparamos el modal si es el proceso de Programación (ID 3)
         if (procesoEspecifico.proceso.id === "3") {
           setIsFinalizeModalOpen(true);
         }
@@ -630,7 +627,6 @@ export default function ScanStation() {
               </div>
             )}
 
-            {/* NUEVA SECCIÓN: Alerta de Sesión Olvidada */}
             {data?.sesionActivaPorNomina && (
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center gap-3">
@@ -661,12 +657,9 @@ export default function ScanStation() {
         </Card>
       </div>
 
-      {/* Sección de acciones secundarias */}
-      {/* Sección de acciones secundarias */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <AccionIndirecto usuarioId={dataE?.usuario?.id} />
 
-        {/* Lógica unificada para Acciones vs Mensaje de Cierre */}
         {sesionId &&
           procesoEspecifico &&
           (procesoEspecifico.estado === "done" ||

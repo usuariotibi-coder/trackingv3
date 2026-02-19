@@ -15,9 +15,6 @@ import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 import { sileo } from "sileo";
 
-// -------------------------------
-// Tipos y utilidades
-// -------------------------------
 type MachineStatus = "running" | "idle" | "maintenance" | "paused";
 
 type Machine = {

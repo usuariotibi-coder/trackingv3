@@ -36,8 +36,6 @@ export default function EstacionMaquinado() {
   const [scanning, setScanning] = useState<boolean>(true);
   const [opManual, setOpManual] = useState<string>("");
 
-  //const procesoActual = "maquinado";
-
   const procesoEnRuta = useMemo(() => {
     const p = payload?.procesos?.find((x) => x.key.includes("maquinado"));
     return p?.label || "Maquinado CNC";
@@ -163,7 +161,6 @@ export default function EstacionMaquinado() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-xl overflow-hidden border bg-black/5 grid place-items-center">
-              {/* Solo renderiza el lector si estamos “scanning” */}
               {scanning ? (
                 <div className="w-full max-w-md">
                   <Scanner
@@ -238,7 +235,6 @@ export default function EstacionMaquinado() {
           </CardFooter>
         </Card>
 
-        {/* RESUMEN DE LA PIEZA */}
         <Card>
           <CardHeader>
             <CardTitle>Resumen de pieza</CardTitle>

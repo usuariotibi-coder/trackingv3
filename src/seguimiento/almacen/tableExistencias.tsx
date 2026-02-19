@@ -131,7 +131,6 @@ export function TableExistencias({ onSelectAction }: TableProps) {
   return (
     <div className="space-y-4">
       <div className="flex w-full items-center justify-between mt-2">
-        {/* Contenedor del Buscador */}
         <div className="relative w-1/4">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -142,7 +141,6 @@ export function TableExistencias({ onSelectAction }: TableProps) {
           />
         </div>
 
-        {/* Contenedor del Botón alineado a la derecha */}
         <Button
           variant="outline"
           onClick={exportToExcel}
@@ -192,7 +190,6 @@ export function TableExistencias({ onSelectAction }: TableProps) {
         </Table>
       </div>
 
-      {/* Resumen simple al pie de tabla */}
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-slate-50 p-2 rounded">
         <AlertCircle className="h-3.5 w-3.5" />
         <span>Mostrando solo operaciones con saldo positivo en almacén.</span>

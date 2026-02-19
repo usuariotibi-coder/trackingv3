@@ -30,7 +30,7 @@ const REGISTRAR_OBS = gql`
 `;
 
 export function AccionProblema({
-  sesionId, // Nota: Asegúrate de pasar el ID de la SESIÓN, no del ProcesoOp
+  sesionId,
   onActionSuccess,
 }: {
   sesionId: string;
@@ -49,7 +49,6 @@ export function AccionProblema({
         },
       });
 
-      // Verificamos si existe la respuesta y el ID antes de proceder
       if (res.data?.registrarObservacionSesion?.id) {
         sileo.warning({
           duration: 3000,

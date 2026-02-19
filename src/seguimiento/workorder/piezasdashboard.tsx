@@ -173,14 +173,12 @@ export default function PiezasDashboard() {
 
   const { loading, error, data } = useQuery<WorkOrderQueryResult>(GET_DATOS);
 
-  // Mapear la data de GraphQL (operaciones) al tipo Pieza
   const apiPiezas: Pieza[] = useMemo(() => {
     if (loading || error || !data?.operaciones) {
       return [];
     }
 
     return data.operaciones.map((op) => {
-      // Mapeamos los procesos
       const procesos: Paso[] = op.procesos.map((pr) => ({
         key: pr.proceso.nombre.toLowerCase().replace(/\s/g, "_"),
         label: pr.proceso.nombre,
@@ -189,7 +187,7 @@ export default function PiezasDashboard() {
       }));
 
       return {
-        id: op.id.toString(), // Usamos el ID de la base para el enlace
+        id: op.id.toString(),
         op: op.operacion,
         plano: op.workorder.plano,
         proyecto: op.workorder.proyecto.proyecto,
@@ -200,8 +198,7 @@ export default function PiezasDashboard() {
     });
   }, [data, loading, error]);
 
-  // Usar SOLO la data de la API (apiPiezas)
-  const finalPiezas = apiPiezas; // <-- CAMBIO CLAVE: Usamos solo los datos del query
+  const finalPiezas = apiPiezas;
 
   const [search, setSearch] = useState("");
   const [proyecto, setProyecto] = useState<string>("all");
@@ -209,18 +206,16 @@ export default function PiezasDashboard() {
   const [categoria, setCategoria] = useState<"all" | "A" | "B" | "C">("all");
   const [sortBy, setSortBy] = useState<
     "fecha_desc" | "progreso_desc" | "tiempo_desc"
-  >("fecha_desc"); // Cambiado a progreso como default ya que 'createdAt' puede ser undefined
+  >("fecha_desc");
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  // Generar la lista de proyectos únicos desde la data final
   const proyectosUnicos = useMemo(
     () => Array.from(new Set(finalPiezas.map((p) => p.proyecto))).sort(),
     [finalPiezas],
   );
 
-  // Filtrar sobre la data final
   const filtered = useMemo(() => {
     let rows = finalPiezas.map((p) => ({ pieza: p, stats: computeStats(p) }));
 
@@ -245,17 +240,15 @@ export default function PiezasDashboard() {
       rows = rows.filter(({ stats }) => stats.estado === estado);
     }
 
-    // Ordenamiento
     rows.sort((a, b) => {
       if (sortBy === "fecha_desc") {
-        // Convertimos las strings de fecha (YYYY-MM-DD) a objetos Date para comparar
         const dateA = a.pieza.createdAt
           ? new Date(a.pieza.createdAt).getTime()
           : 0;
         const dateB = b.pieza.createdAt
           ? new Date(b.pieza.createdAt).getTime()
           : 0;
-        return dateB - dateA; // De más reciente a más antiguo
+        return dateB - dateA;
       }
       if (sortBy === "progreso_desc") {
         return b.stats.completedRatio - a.stats.completedRatio;
@@ -267,13 +260,11 @@ export default function PiezasDashboard() {
     return rows;
   }, [search, proyecto, estado, categoria, sortBy, finalPiezas]);
 
-  // Paginación
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const slice = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
-  // Manejo de estados de carga y error para el UX
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl p-6 text-center">
@@ -288,7 +279,6 @@ export default function PiezasDashboard() {
     );
   }
 
-  // Si hay error, pero *no* hay data, muestra un error.
   if (error && finalPiezas.length === 0) {
     return (
       <div className="mx-auto max-w-6xl p-6">
@@ -302,7 +292,6 @@ export default function PiezasDashboard() {
     );
   }
 
-  // Si no hay piezas después de la carga
   if (finalPiezas.length === 0) {
     return (
       <div className="mx-auto max-w-6xl p-6 text-center">
@@ -335,7 +324,6 @@ export default function PiezasDashboard() {
         </p>
       </div>
 
-      {/* Controles */}
       <Card className="mb-6">
         <CardHeader className="pb-4">
           <CardTitle className="text-base">Filtros y orden</CardTitle>
@@ -444,7 +432,6 @@ export default function PiezasDashboard() {
         </CardContent>
       </Card>
 
-      {/* Tabla */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -520,7 +507,6 @@ export default function PiezasDashboard() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild size="sm">
-                        {/* Usamos el ID de la base para el enlace */}
                         <Link to={`/pieza/${pieza.id}`}>Ver detalle</Link>
                       </Button>
                     </TableCell>
@@ -530,7 +516,6 @@ export default function PiezasDashboard() {
             </Table>
           </div>
 
-          {/* Paginación */}
           <Separator className="my-4" />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
