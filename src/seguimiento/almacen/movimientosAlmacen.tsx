@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { gql } from "@apollo/client";
 import { useMutation, useLazyQuery } from "@apollo/client/react";
 import {
@@ -44,7 +44,10 @@ interface WorkOrder {
   proyecto?: {
     proyecto: string;
   };
-  operaciones: Operacion[];
+  // The backend schema changed: `operaciones` may become singular or be renamed.
+  // Accept an array or a single object and normalize at runtime.
+  operaciones?: Operacion[] | Operacion | null;
+  operacion?: Operacion | null;
 }
 
 // Interfaz para el objeto de respuesta de la Query
@@ -67,7 +70,7 @@ const GET_WO_DETALLE = gql`
       proyecto {
         proyecto
       }
-      operaciones {
+      operacion {
         id
         operacion
         stockActual
@@ -122,7 +125,18 @@ export function FormularioMovimiento({
   const [registrar, { loading: sending }] = useMutation(REGISTRAR_MOVIMIENTO);
 
   const wo = data?.workorderByPlano;
-  const opSel = wo?.operaciones.find((o: any) => o.id === selectedOpId);
+
+  // Normalize operaciones to an array regardless of backend shape (array vs single object vs renamed field)
+  const operacionesList: Operacion[] = useMemo(() => {
+    if (!wo) return [];
+    const anyWo: any = wo;
+    if (Array.isArray(anyWo.operaciones)) return anyWo.operaciones;
+    if (anyWo.operaciones) return [anyWo.operaciones];
+    if (anyWo.operacion) return [anyWo.operacion];
+    return [];
+  }, [wo]);
+
+  const opSel = operacionesList.find((o: any) => o.id === selectedOpId);
   const stockDisponible = opSel?.stockActual || 0;
 
   const handleSearch = (e: React.FormEvent) => {
@@ -207,7 +221,7 @@ export function FormularioMovimiento({
                   <SelectValue placeholder="Selecciona OP" />
                 </SelectTrigger>
                 <SelectContent>
-                  {wo.operaciones.map((o: any) => (
+                  {operacionesList.map((o: any) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.operacion}
                     </SelectItem>

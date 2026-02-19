@@ -16,16 +16,16 @@ import { sileo } from "sileo";
 
 /* --------------------------------- Interfaces -------------------------------- */
 interface DeleteWOResponse {
-  eliminarWorkorderPorPlano: boolean;
+  eliminarWoPorOperacion: boolean;
 }
 
 /* --------------------------------- Componente -------------------------------- */
 export function DeleteWorkOrderCard() {
-  const [plano, setPlano] = useState("");
+  const [operacion, setOperacion] = useState("");
 
   const DELETE_WO = gql`
-    mutation EliminarWO($plano: String!) {
-      eliminarWorkorderPorPlano(plano: $plano)
+    mutation EliminarWO($codigo: String!) {
+      eliminarWoPorOperacion(codigoOperacion: $codigo)
     }
   `;
 
@@ -37,19 +37,21 @@ export function DeleteWorkOrderCard() {
     // Confirmación de seguridad antes de proceder
     if (
       !window.confirm(
-        `¿Estás seguro de eliminar permanentemente la WO '${plano}'?`,
+        `¿Estás seguro de eliminar permanentemente la WO '${operacion}'?`,
       )
     ) {
       return;
     }
 
     try {
-      const { data } = await deleteWo({ variables: { plano } });
+      const { data } = await deleteWo({
+        variables: { codigoOperacion: operacion },
+      });
 
-      if (data?.eliminarWorkorderPorPlano) {
+      if (data?.eliminarWoPorOperacion) {
         sileo.success({
           title: "WO Eliminada",
-          description: `La orden ${plano} ha sido borrada exitosamente.`,
+          description: `La orden ${operacion} ha sido borrada exitosamente.`,
           position: "top-center",
           fill: "black",
           styles: {
@@ -57,7 +59,7 @@ export function DeleteWorkOrderCard() {
             description: "text-white/75!",
           },
         });
-        setPlano("");
+        setOperacion("");
       }
     } catch (e: any) {
       sileo.error({
@@ -89,13 +91,13 @@ export function DeleteWorkOrderCard() {
         <form onSubmit={handleAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="plano-delete" className="text-red-900">
-              Número de Plano
+              Número de operación de WO a eliminar
             </Label>
             <Input
               id="plano-delete"
               placeholder="Ej. PL-2024-001"
-              value={plano}
-              onChange={(e) => setPlano(e.target.value)}
+              value={operacion}
+              onChange={(e) => setOperacion(e.target.value)}
               required
               className="bg-white border-red-200 focus-visible:ring-red-500"
             />
@@ -106,7 +108,7 @@ export function DeleteWorkOrderCard() {
               type="submit"
               variant="destructive"
               className="w-full md:w-1/2 font-bold shadow-sm"
-              disabled={loading || !plano}
+              disabled={loading || !operacion}
             >
               {loading ? (
                 "Eliminando..."
