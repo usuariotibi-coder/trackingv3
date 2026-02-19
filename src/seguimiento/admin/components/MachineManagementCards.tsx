@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
-import { Wrench, Save, Trash2 } from "lucide-react";
+import { Wrench, Save, Trash2, AlertTriangle } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -9,6 +9,17 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -73,6 +84,10 @@ export function CreateMachineCard() {
         title: "Error",
         description: e.message,
         position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
       });
     }
   };
@@ -147,10 +162,9 @@ export function DeleteMachineCard() {
 
   const [deleteMachine, { loading }] = useMutation(DELETE_MAQUINA);
   const [nombre, setNombre] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleDelete = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!window.confirm(`¿Eliminar máquina '${nombre}'?`)) return;
+  const handleConfirmDelete = async () => {
     try {
       await deleteMachine({ variables: { nombre } });
       sileo.success({
@@ -159,10 +173,10 @@ export function DeleteMachineCard() {
         fill: "black",
         styles: {
           title: "text-white!",
-          description: "text-white/75!",
         },
       });
       setNombre("");
+      setIsOpen(false);
     } catch (e: any) {
       sileo.error({
         title: "Error",
@@ -171,7 +185,6 @@ export function DeleteMachineCard() {
         fill: "black",
         styles: {
           title: "text-white!",
-          description: "text-white/75!",
         },
       });
     }
@@ -183,39 +196,61 @@ export function DeleteMachineCard() {
         <CardTitle className="flex items-center gap-2 text-red-700">
           <Trash2 /> Baja de Máquina
         </CardTitle>
-        <CardDescription className="text-red-600">
-          Elimina una máquina de forma permanente.
+        <CardDescription className="text-red-600 font-medium">
+          Elimina una máquina de forma permanente del inventario de planta.
         </CardDescription>
       </CardHeader>
       <Separator className="bg-red-200" />
       <CardContent className="pt-6">
-        <form onSubmit={handleDelete} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label>Nombre de la Máquina a eliminar</Label>
             <Input
+              placeholder="Ej. CNC-01"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               required
+              className="bg-white border-red-200 focus-visible:ring-red-500"
             />
           </div>
           <div className="flex justify-center pt-2">
-            <Button
-              type="submit"
-              variant="destructive"
-              className="w-1/2 gap-2"
-              disabled={loading}
-            >
-              {loading ? (
-                "Eliminando..."
-              ) : (
-                <>
+            <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="w-1/2 gap-2 shadow-sm"
+                  disabled={loading || !nombre}
+                >
                   <Trash2 className="h-4 w-4" />
                   Eliminar Máquina
-                </>
-              )}
-            </Button>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    ¿Confirmar eliminación de equipo?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Estás por eliminar la máquina{" "}
+                    <span className="font-bold text-black">{nombre}</span>. Esto
+                    borrará permanentemente su configuración y la desconectará
+                    de sus procesos asociados.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleConfirmDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {loading ? "Procesando..." : "Confirmar Eliminación"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

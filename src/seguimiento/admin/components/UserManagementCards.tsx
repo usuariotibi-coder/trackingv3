@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
-import { User, Save, Trash2 } from "lucide-react";
+import { User, Save, Trash2, AlertTriangle } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -9,6 +9,17 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -228,21 +239,30 @@ export function DeleteUserCard() {
 
   const [deleteUser, { loading }] = useMutation(DELETE_USUARIO);
   const [numero, setNumero] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleDelete = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!window.confirm(`¿Eliminar permanentemente al usuario '${numero}'?`))
-      return;
-
+  const handleConfirmDelete = async () => {
     try {
       await deleteUser({ variables: { numero } });
-      sileo.success({ title: "Usuario eliminado", position: "top-center" });
+      sileo.success({
+        title: "Usuario eliminado",
+        position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
+      });
       setNumero("");
+      setIsOpen(false);
     } catch (e: any) {
       sileo.error({
         title: "Error",
         description: e.message,
         position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
       });
     }
   };
@@ -253,38 +273,60 @@ export function DeleteUserCard() {
         <CardTitle className="flex items-center gap-2 text-red-700">
           <Trash2 /> Formulario de Usuario (Baja)
         </CardTitle>
-        <CardDescription className="text-red-600">
+        <CardDescription className="text-red-600 font-medium">
           Elimina un usuario de forma permanente usando su número de nómina.
         </CardDescription>
       </CardHeader>
       <Separator className="bg-red-200" />
       <CardContent className="pt-6">
-        <form onSubmit={handleDelete} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label>Número de empleado a eliminar</Label>
             <Input
+              placeholder="Ej. 1024"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               required
+              className="bg-white border-red-200 focus-visible:ring-red-500"
             />
           </div>
           <div className="flex justify-center pt-4">
-            <Button
-              type="submit"
-              variant="destructive"
-              className="w-1/2 gap-2"
-              disabled={loading}
-            >
-              {loading ? (
-                "Eliminando..."
-              ) : (
-                <>
+            <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="w-1/2 gap-2 shadow-sm font-bold"
+                  disabled={loading || !numero}
+                >
                   <Trash2 className="h-4 w-4" /> Eliminar Usuario
-                </>
-              )}
-            </Button>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    ¿Confirmar baja de personal?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Estás por eliminar al usuario con número de nómina{" "}
+                    <span className="font-bold text-black">{numero}</span>. Esta
+                    acción borrará permanentemente su acceso y su historial de
+                    sesiones activas.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleConfirmDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {loading ? "Eliminando..." : "Sí, eliminar permanentemente"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

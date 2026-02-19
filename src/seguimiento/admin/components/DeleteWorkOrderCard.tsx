@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertTriangle } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -9,6 +9,17 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -22,6 +33,7 @@ interface DeleteWOResponse {
 /* --------------------------------- Componente -------------------------------- */
 export function DeleteWorkOrderCard() {
   const [operacion, setOperacion] = useState("");
+  const [isOpen, setIsOpen] = useState(false); // Control del Dialog
 
   const DELETE_WO = gql`
     mutation EliminarWO($codigo: String!) {
@@ -31,18 +43,7 @@ export function DeleteWorkOrderCard() {
 
   const [deleteWo, { loading }] = useMutation<DeleteWOResponse>(DELETE_WO);
 
-  const handleAction = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Confirmación de seguridad antes de proceder
-    if (
-      !window.confirm(
-        `¿Estás seguro de eliminar permanentemente la WO '${operacion}'?`,
-      )
-    ) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
     try {
       const { data } = await deleteWo({
         variables: { codigo: operacion },
@@ -60,6 +61,7 @@ export function DeleteWorkOrderCard() {
           },
         });
         setOperacion("");
+        setIsOpen(false);
       }
     } catch (e: any) {
       sileo.error({
@@ -82,20 +84,20 @@ export function DeleteWorkOrderCard() {
           <Trash2 className="h-5 w-5" /> Baja de Work Order
         </CardTitle>
         <CardDescription className="text-red-600 font-medium">
-          Elimina una orden de trabajo por su número de plano. Esta acción es
-          permanente y no se puede deshacer.
+          Elimina una orden de trabajo por su número de operación. Esta acción
+          es permanente.
         </CardDescription>
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleAction} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="plano-delete" className="text-red-900">
               Número de operación de WO a eliminar
             </Label>
             <Input
               id="plano-delete"
-              placeholder="Ej. PL-2024-001"
+              placeholder="Ej. WO-XXXX-26..."
               value={operacion}
               onChange={(e) => setOperacion(e.target.value)}
               required
@@ -104,22 +106,43 @@ export function DeleteWorkOrderCard() {
           </div>
 
           <div className="w-full justify-center flex items-center pt-2">
-            <Button
-              type="submit"
-              variant="destructive"
-              className="w-full md:w-1/2 font-bold shadow-sm"
-              disabled={loading || !operacion}
-            >
-              {loading ? (
-                "Eliminando..."
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4" /> Eliminar WorkOrder
-                </>
-              )}
-            </Button>
+            {/* Implementación de AlertDialog como confirmación */}
+            <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="w-full md:w-1/2 font-bold shadow-sm"
+                  disabled={loading || !operacion}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Eliminar WorkOrder
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    ¿Confirmar eliminación permanente?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Estás a punto de borrar la operación{" "}
+                    <span className="font-bold text-black">{operacion}</span>.
+                    Esto eliminará también el archivo PDF y todo el historial de
+                    procesos vinculado.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleConfirmDelete}
+                    className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                  >
+                    {loading ? "Borrando..." : "Sí, eliminar ahora"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

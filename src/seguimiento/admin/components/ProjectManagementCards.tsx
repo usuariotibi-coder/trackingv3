@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
-import { FolderPlus, Save, Trash2 } from "lucide-react";
+import { FolderPlus, Save, Trash2, AlertTriangle } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -9,6 +9,17 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -18,7 +29,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { sileo } from "sileo";
 
 /* ----------------------------------------------------------------------
-// SECCIÓN: CREAR PROYECTO
+// SECCIÓN: CREAR PROYECTO (Sin cambios significativos)
 // ---------------------------------------------------------------------- */
 export function CreateProjectCard() {
   const CREATE_PROYECTO = gql`
@@ -126,7 +137,7 @@ export function CreateProjectCard() {
 }
 
 /* ----------------------------------------------------------------------
-// SECCIÓN: ELIMINAR PROYECTO
+// SECCIÓN: ELIMINAR PROYECTO (Actualizada con AlertDialog)
 // ---------------------------------------------------------------------- */
 export function DeleteProjectCard() {
   const DELETE_PROYECTO = gql`
@@ -137,25 +148,30 @@ export function DeleteProjectCard() {
 
   const [deleteProject, { loading }] = useMutation(DELETE_PROYECTO);
   const [nombre, setNombre] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleDelete = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (
-      !window.confirm(
-        `¿Eliminar '${nombre}'? Esto afectará WorkOrders asociadas.`,
-      )
-    )
-      return;
-
+  const handleConfirmDelete = async () => {
     try {
       await deleteProject({ variables: { proyecto: nombre } });
-      sileo.success({ title: "Proyecto eliminado", position: "top-center" });
+      sileo.success({
+        title: "Proyecto eliminado",
+        position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
+      });
       setNombre("");
+      setIsOpen(false);
     } catch (e: any) {
       sileo.error({
         title: "Error",
         description: e.message,
         position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+        },
       });
     }
   };
@@ -166,38 +182,62 @@ export function DeleteProjectCard() {
         <CardTitle className="flex items-center gap-2 text-red-700">
           <Trash2 className="h-5 w-5" /> Baja de Proyecto
         </CardTitle>
-        <CardDescription className="text-red-600">
-          Elimina un proyecto de forma permanente.
+        <CardDescription className="text-red-600 font-medium">
+          Elimina un proyecto de forma permanente. Ten en cuenta que esto
+          afectará a las WorkOrders vinculadas.
         </CardDescription>
       </CardHeader>
       <Separator className="bg-red-200" />
       <CardContent className="pt-6">
-        <form onSubmit={handleDelete} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label>Nombre del Proyecto a eliminar</Label>
             <Input
+              placeholder="Ej. OP-2024-001"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               required
+              className="bg-white border-red-200 focus-visible:ring-red-500"
             />
           </div>
           <div className="flex justify-center pt-2">
-            <Button
-              type="submit"
-              variant="destructive"
-              className="w-1/2 gap-2"
-              disabled={loading}
-            >
-              {loading ? (
-                "Eliminando..."
-              ) : (
-                <>
+            <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-1/2 gap-2 shadow-sm font-bold"
+                  disabled={loading || !nombre}
+                >
                   <Trash2 className="h-4 w-4" /> Eliminar Proyecto
-                </>
-              )}
-            </Button>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    ¿Confirmar eliminación de proyecto?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Estás a punto de eliminar permanentemente el proyecto{" "}
+                    <span className="font-bold text-black">{nombre}</span>. Esta
+                    acción podría eliminar automáticamente las **WorkOrders** y
+                    **Operaciones** asociadas en cascada.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleConfirmDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {loading ? "Eliminando..." : "Sí, eliminar ahora"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );
