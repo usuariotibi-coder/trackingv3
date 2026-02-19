@@ -45,7 +45,7 @@ export function DeleteWorkOrderCard() {
 
     try {
       const { data } = await deleteWo({
-        variables: { codigoOperacion: operacion },
+        variables: { codigo: operacion },
       });
 
       if (data?.eliminarWoPorOperacion) {
