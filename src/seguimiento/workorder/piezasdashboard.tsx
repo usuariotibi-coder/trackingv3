@@ -180,12 +180,13 @@ export default function PiezasDashboard() {
 
     return data.operaciones.map((op) => {
       const procesos: Paso[] = op.procesos.map((pr) => {
-        // Validamos que pr.proceso y pr.proceso.nombre existan antes de llamar a toLowerCase()
-        const nombreProceso = pr.proceso?.nombre || "Proceso sin nombre";
+        // 1. Usamos encadenamiento opcional y un string por defecto
+        const nombreSeguro = pr.proceso?.nombre || "Proceso Sin Nombre";
 
         return {
-          key: nombreProceso.toLowerCase().replace(/\s/g, "_"),
-          label: nombreProceso,
+          // 2. Ahora toLowerCase() nunca se ejecutará sobre un null
+          key: nombreSeguro.toLowerCase().replace(/\s/g, "_"),
+          label: nombreSeguro,
           minutos: pr.tiempoEstimado || 0,
           estado: pr.estado,
         };
