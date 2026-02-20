@@ -217,7 +217,6 @@ export default function MaquinasDashboardPage() {
   const machines = useMemo(() => {
     if (!data?.maquinas) return [];
 
-    // Función de normalización idéntica a la que usas en Proyectos
     const normalize = (s: string) =>
       s
         .normalize("NFD")
@@ -229,12 +228,18 @@ export default function MaquinasDashboardPage() {
 
     const mapped = data.maquinas.map((mc) => {
       const activeSession = mc.sesionActual ?? null;
-      const isPaused = !!activeSession?.pausas?.some((p) => p.horaFin == null);
-      const status: MachineStatus = activeSession
-        ? isPaused
-          ? "paused"
-          : "running"
-        : "idle";
+
+      // Determinamos el estado:
+      // 1. Si no hay sesión, es IDLE.
+      // 2. Si hay una pausa sin 'horaFin', es PAUSED.
+      // 3. Si hay sesión y no está pausada, es RUNNING.
+      let status: MachineStatus = "idle";
+      if (activeSession) {
+        const hasOpenPause = activeSession.pausas?.some(
+          (p) => p.horaFin == null,
+        );
+        status = hasOpenPause ? "paused" : "running";
+      }
 
       return {
         id: mc.id,
@@ -250,7 +255,7 @@ export default function MaquinasDashboardPage() {
       };
     });
 
-    // ORDENAR: Basado en desiredOrder
+    // Ordenamiento por área según desiredOrder
     return [...mapped].sort((a, b) => {
       const indexA = desiredOrder.findIndex(
         (d) => normalize(d) === normalize(a.area),
@@ -259,11 +264,9 @@ export default function MaquinasDashboardPage() {
         (d) => normalize(d) === normalize(b.area),
       );
 
-      // Si no se encuentra en la lista (index -1), se manda al final
       const posA = indexA === -1 ? 999 : indexA;
       const posB = indexB === -1 ? 999 : indexB;
 
-      // Si están en la misma área, ordenar alfabéticamente por nombre de máquina
       if (posA === posB) {
         return a.name.localeCompare(b.name);
       }
@@ -383,7 +386,7 @@ export default function MaquinasDashboardPage() {
           <LegendDot className="bg-orange-500" label="Pausado" />
         </div>
 
-        <div className="flex flex-wrap gap-x-10 gap-y-12 items-start">
+        <div className="flex flex-wrap gap-x-10 gap-y-12 items-start mt-10 mb-5">
           {/* Mapeo de áreas en el orden deseado */}
           {desiredOrder.map((areaName) => {
             const key = normalize(areaName);
@@ -392,7 +395,7 @@ export default function MaquinasDashboardPage() {
             if (!machinesInArea || machinesInArea.length === 0) return null;
 
             return (
-              <section key={key} className="flex-none mt-10">
+              <section key={key} className="flex-none mb-10">
                 {/* Header de área compacto */}
                 <div className="flex items-center gap-2 mb-3 border-b border-neutral-200 pb-1.5">
                   <h2 className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
