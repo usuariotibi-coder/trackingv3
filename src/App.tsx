@@ -21,7 +21,7 @@ import LavorMaquinaPage from "./seguimiento/dashboard/lavor-maquina";
 function App() {
   return (
     <>
-      <Toaster position="top-center" />
+      <Toaster position="top-center" offset={{ top: 50 }} />
       <BrowserRouter>
         <AppNav />
         <Routes>

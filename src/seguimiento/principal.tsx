@@ -235,11 +235,10 @@ export default function ProyectosPage() {
     if (isRefetching || loading) {
       sileo.info({
         duration: 3000,
-        title: "Actualizando",
+        title: "Sincronizando datos en vivo",
         icon: (
           <RefreshCw className="flex items-center justify-center h-4 w-4 animate-spin" />
         ),
-        description: "Sincronizando datos en vivo...",
         fill: "black",
         styles: {
           title: "text-white!",
