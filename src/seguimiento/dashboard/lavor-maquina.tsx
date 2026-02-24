@@ -54,7 +54,6 @@ interface SesionTrabajoMaquina {
   horaFin: string | null;
   tiempoEfectivo: number;
   tiempoTotal: number;
-  conteoParcial: number;
   pausas: Array<{
     id: string;
     duracionMinutos: number;
@@ -122,7 +121,6 @@ const GET_HISTORIAL_MAQUINA = gql`
         horaFin
         tiempoEfectivo
         tiempoTotal
-        conteoParcial
         pausas {
           id
           duracionMinutos

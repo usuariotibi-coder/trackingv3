@@ -59,7 +59,6 @@ interface SesionTrabajo {
   horaFin: string | null;
   tiempoEfectivo: number;
   tiempoTotal: number;
-  conteoParcial: number;
   observaciones: string | null;
   pausas: Array<{
     id: string;
@@ -116,7 +115,6 @@ const GET_USUARIO = gql`
         horaFin
         tiempoEfectivo
         tiempoTotal
-        conteoParcial
         observaciones
         pausas {
           id
