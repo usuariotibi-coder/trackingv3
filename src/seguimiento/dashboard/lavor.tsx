@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 //import { motion } from "framer-motion";
@@ -150,6 +150,9 @@ function formatTime(d: Date): string {
 }
 
 export default function LavorPage() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const { data: usersListData } = useQuery<GetUsuariosData>(gql`
     query GetUsuarios {
       usuarios {
@@ -322,6 +325,16 @@ export default function LavorPage() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   }
 
+  const totalPages = Math.ceil(filteredIntervals.length / itemsPerPage);
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredIntervals.slice(start, start + itemsPerPage);
+  }, [filteredIntervals, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [projectFilter, currentSelectedNumero]);
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-black px-6 py-10">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -487,7 +500,7 @@ export default function LavorPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredIntervals.map((itv, i) => {
+                {paginatedData.map((itv, i) => {
                   const totalPausasMin = itv.pausas.reduce(
                     (acc, p) => acc + p.duracionMinutos,
                     0,
@@ -577,6 +590,31 @@ export default function LavorPage() {
                 })}
               </TableBody>
             </Table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-end space-x-2 py-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <div className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
