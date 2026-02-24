@@ -217,18 +217,6 @@ const REGISTRAR_OBSERVACION = gql`
   }
 `;
 
-// const CREAR_GEMELA = gql`
-//   mutation CrearGemela($procesoOpId: ID!, $usuarioId: ID!) {
-//     crearSesionGemela(procesoOpId: $procesoOpId, usuarioId: $usuarioId) {
-//       id
-//       procesoOp {
-//         id
-//         estado
-//       }
-//     }
-//   }
-// `;
-
 export default function ScanStation() {
   const [employeeId, setEmployeeId] = useState("");
   const [sesionId, setSesionId] = useState<string | null>(null);
@@ -480,26 +468,6 @@ export default function ScanStation() {
     }
   };
 
-  // const haySesionDeOtro = procesoEspecifico?.sesiones.some(
-  //   (s) => !s.horaFin && s.id !== sesionId,
-  // );
-
-  // const handleUnirse = async () => {
-  //   try {
-  //     await crearGemela({
-  //       variables: {
-  //         procesoOpId: procesoEspecifico?.id,
-  //         usuarioId: dataE?.usuario?.id,
-  //       },
-  //     });
-  //     sileo.success({ title: "Te has unido a la pieza", fill: "black" });
-  //     consultarSesion({ variables: { numero: employeeId } });
-  //     refetchP();
-  //   } catch (e: any) {
-  //     sileo.error({ title: "Error al unirse", description: e.message });
-  //   }
-  // };
-
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -602,17 +570,6 @@ export default function ScanStation() {
                         ? `Finalizar Pieza #${numeroPiezaVisual}`
                         : `Iniciar Pieza #${numeroPiezaVisual}`}
             </Button>
-
-            {/* {dataE?.usuario?.proceso?.nombre === "Pintura" &&
-              haySesionDeOtro &&
-              !sesionId && (
-                <Button
-                  onClick={handleUnirse}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 mt-2"
-                >
-                  Unirse a compañero (Sesión Gemela)
-                </Button>
-              )} */}
           </CardContent>
         </Card>
 
