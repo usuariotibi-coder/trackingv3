@@ -22,6 +22,7 @@ type Machine = {
   name: string;
   piece?: string | null;
   operator?: string | null;
+  colaboradores?: string[];
   status: MachineStatus;
   startedAt?: string | null;
   cycleTargetMin?: number;
@@ -41,6 +42,7 @@ type GetMonitoreoMaquinasQuery = {
       horaFin?: string | null;
       tiempoEfectivo?: number | null;
       usuario?: { nombre: string } | null;
+      colaboraciones?: Array<{ usuario: { nombre: string } }> | null;
       procesoOp?: {
         conteoActual?: number | null;
         tiempoEstimado?: number | null;
@@ -161,6 +163,11 @@ export default function MaquinasDashboardPage() {
           usuario {
             nombre
           }
+          colaboraciones {
+            usuario {
+              nombre
+            }
+          }
           procesoOp {
             tiempoEstimado
             tiempoRealCalculado
@@ -253,6 +260,8 @@ export default function MaquinasDashboardPage() {
             name: mc.nombre,
             piece: session.procesoOp?.operacion?.operacion || null,
             operator: session.usuario?.nombre || null,
+            colaboradores:
+              session.colaboraciones?.map((c: any) => c.usuario.nombre) || [],
             status: hasOpenPause ? "paused" : "running",
             startedAt: session.horaInicio,
             tiempoEfectivoServer: session.tiempoEfectivo || 0,
@@ -536,6 +545,15 @@ function MachineCard({
             <span className="text-muted-foreground">—</span>
           )}
         </StackedRow>
+        {m.colaboradores && m.colaboradores.length > 0 && (
+          <>
+            {m.colaboradores.map((nom, idx) => (
+              <div key={idx} className="text-muted-foreground">
+                {nom.toLowerCase()}
+              </div>
+            ))}
+          </>
+        )}
         <Row label="Inicio">
           {(m.status === "running" || m.status === "paused") && m.startedAt ? (
             new Date(m.startedAt).toLocaleTimeString([], {

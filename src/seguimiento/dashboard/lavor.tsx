@@ -52,49 +52,41 @@ import {
   Hourglass,
   Download,
 } from "lucide-react";
+//import { Badge } from "@/components/ui/badge";
 
-interface SesionTrabajo {
+interface SesionBase {
   id: string;
   horaInicio: string;
   horaFin: string | null;
   tiempoEfectivo: number;
-  tiempoTotal: number;
-  observaciones: string | null;
+  procesoOp: {
+    tiempoEstimado: number | null;
+    operacion: {
+      operacion: string;
+      proyecto: { proyecto: string } | null;
+      workorder: {
+        plano: string;
+      } | null;
+    };
+  };
   pausas: Array<{
     id: string;
     duracionMinutos: number;
     motivo: string;
   }>;
   maquina: { nombre: string };
-  procesoOp: {
-    tiempoEstimado: number | null;
-    proceso: { nombre: string };
-    operacion: {
-      operacion: string;
-      proyecto: { proyecto: string } | null;
-    };
-  };
 }
 
 interface GetUserData {
   usuario: {
     id: string;
     nombre: string;
-    historialSesiones: SesionTrabajo[]; // Cambio de procesosAsignados a historialSesiones
+    historialSesiones: SesionBase[];
+    historialColaboraciones: Array<{
+      sesionPrincipal: SesionBase;
+    }>;
   } | null;
 }
-
-type Interval = {
-  start: string;
-  end: string;
-  minutes: number;
-  kind: string;
-  maquinaNombre: string;
-  operacion: string;
-  proyecto: string;
-  tiempoEstimado: number;
-  pausas: Array<{ duracionMinutos: number; motivo: string }>;
-};
 
 interface GetUsuariosData {
   usuarios: Array<{
@@ -110,40 +102,45 @@ const GET_USUARIO = gql`
       id
       nombre
       historialSesiones {
-        id
-        horaInicio
-        horaFin
-        tiempoEfectivo
-        tiempoTotal
-        observaciones
-        pausas {
-          id
-          duracionMinutos
-          motivo
+        ...SesionFields
+      }
+      historialColaboraciones {
+        sesionPrincipal {
+          ...SesionFields
         }
-        maquina {
-          nombre
-        }
-        procesoOp {
-          tiempoEstimado
-          proceso {
-            nombre
-          }
-          operacion {
-            operacion
-            proyecto {
-              proyecto
-            }
-          }
+      }
+    }
+  }
+
+  fragment SesionFields on SesionTrabajoType {
+    id
+    horaInicio
+    horaFin
+    tiempoEfectivo
+    tiempoTotal
+    observaciones
+    pausas {
+      id
+      duracionMinutos
+      motivo
+    }
+    maquina {
+      nombre
+    }
+    procesoOp {
+      tiempoEstimado
+      proceso {
+        nombre
+      }
+      operacion {
+        operacion
+        proyecto {
+          proyecto
         }
       }
     }
   }
 `;
-
-function diffMinutes(a: Date, b: Date): number {
-  return Math.max(0, (b.getTime() - a.getTime()) / 60000);
-}
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -183,61 +180,74 @@ export default function LavorPage() {
       numero: selectedEmployeeNumero,
     },
     skip: !selectedEmployeeNumero,
+    fetchPolicy: "network-only",
   });
 
   const timelineData = useMemo(() => {
-    const sesiones = userData?.usuario?.historialSesiones;
-    if (!sesiones || sesiones.length === 0)
+    if (!userData?.usuario) {
       return { intervals: [], totalWorkMin: 0, totalEstMin: 0, chartData: [] };
-
-    const intervals: Interval[] = [];
-    let totalWorkMin = 0;
-    let totalEstMin = 0;
-
-    const hourBuckets: Record<string, number> = {};
-    for (let i = 6; i <= 22; i++) {
-      hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
     }
 
-    sesiones.forEach((sesion) => {
-      const start = new Date(sesion.horaInicio);
-      const end = sesion.horaFin ? new Date(sesion.horaFin) : new Date();
+    // 1. Sesiones Propias
+    const propias = userData.usuario.historialSesiones.map((s: any) => ({
+      ...s,
+      esColaboracion: false,
+    }));
 
-      // Usamos el tiempo efectivo que descuenta pausas automáticamente
-      const minutes = Math.round(sesion.tiempoEfectivo);
-      const estimado = sesion.procesoOp.tiempoEstimado ?? 0;
+    // 2. Colaboraciones (Aplanamos sesionPrincipal para que sea igual a una sesión propia)
+    const colaboraciones = (userData.usuario.historialColaboraciones || []).map(
+      (c: any) => ({
+        ...c.sesionPrincipal,
+        esColaboracion: true,
+      }),
+    );
 
-      if (minutes >= 0) {
-        const pausasArray = sesion.pausas ?? [];
-        intervals.push({
-          start: sesion.horaInicio,
-          end: sesion.horaFin ?? end.toISOString(),
-          minutes,
-          kind: "work",
-          maquinaNombre: sesion.maquina?.nombre ?? "N/A",
-          operacion: sesion.procesoOp.operacion.operacion ?? "N/A",
-          proyecto: sesion.procesoOp.operacion.proyecto?.proyecto ?? "N/A",
-          tiempoEstimado: estimado,
-          pausas: pausasArray.map((p) => ({
-            duracionMinutos: p.duracionMinutos,
-            motivo: p.motivo,
-          })),
-        });
+    // 3. Unir y ordenar
+    const todas = [...propias, ...colaboraciones].sort(
+      (a, b) =>
+        new Date(b.horaInicio).getTime() - new Date(a.horaInicio).getTime(),
+    );
 
-        totalWorkMin += minutes;
-        totalEstMin += estimado;
+    const intervals: any[] = [];
+    let totalWorkMin = 0;
+    let totalEstMin = 0;
+    const hourBuckets: Record<string, number> = {};
+    for (let i = 6; i <= 22; i++)
+      hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
 
-        // Lógica para la gráfica de distribución por horas
-        let cursor = new Date(start);
-        while (cursor < end) {
-          const hourKey = format(cursor, "HH:00");
-          if (hourBuckets[hourKey] !== undefined) {
-            const nextHour = addHours(startOfHour(cursor), 1);
-            const limit = end < nextHour ? end : nextHour;
-            hourBuckets[hourKey] += diffMinutes(cursor, limit);
-          }
-          cursor = addHours(startOfHour(cursor), 1);
+    // 2. Mapear con los nombres de campos que espera tu <Table>
+    todas.forEach((s) => {
+      const start = new Date(s.horaInicio);
+      const end = s.horaFin ? new Date(s.horaFin) : new Date();
+      const minutes = Math.round(s.tiempoEfectivo || 0);
+      const tiempoEstimado = s.procesoOp?.tiempoEstimado || 0;
+
+      intervals.push({
+        id: s.id,
+        start: s.horaInicio,
+        end: s.horaFin || new Date().toISOString(),
+        minutes,
+        tiempoEstimado,
+        plano: s.procesoOp?.operacion?.workorder?.plano || "N/A",
+        operacion: s.procesoOp?.operacion?.operacion || "N/A",
+        proyecto: s.procesoOp?.operacion?.proyecto?.proyecto || "N/A",
+        pausas: s.pausas || [],
+        esColaboracion: s.esColaboracion,
+      });
+
+      totalWorkMin += minutes;
+      totalEstMin += tiempoEstimado;
+
+      // Distribución horaria para la gráfica
+      let cursor = new Date(start);
+      while (cursor < end) {
+        const hourKey = format(cursor, "HH:00");
+        if (hourBuckets[hourKey] !== undefined) {
+          const nextHour = addHours(startOfHour(cursor), 1);
+          const limit = end < nextHour ? end : nextHour;
+          hourBuckets[hourKey] += (limit.getTime() - cursor.getTime()) / 60000;
         }
+        cursor = addHours(startOfHour(cursor), 1);
       }
     });
 
@@ -254,7 +264,7 @@ export default function LavorPage() {
     return timelineData.intervals.filter(
       (itv) => itv.proyecto === projectFilter,
     );
-  }, [timelineData.intervals, projectFilter]);
+  }, [timelineData, projectFilter]);
 
   // Función de Exportación a CSV
   const exportToCSV = () => {
@@ -335,6 +345,10 @@ export default function LavorPage() {
     setCurrentPage(1);
   }, [projectFilter, currentSelectedNumero]);
 
+  const showData = () => {
+    console.log(userData?.usuario?.historialColaboraciones || []);
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-black px-6 py-10">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -349,7 +363,9 @@ export default function LavorPage() {
           </div>
           <div className="flex gap-2">
             <div className="space-y-1">
-              <Label className="text-xs">Operador</Label>
+              <Label className="text-xs" onClick={showData}>
+                Operador
+              </Label>
               <Select
                 value={selectedEmployeeNumero}
                 onValueChange={setCurrentSelectedNumero}
@@ -502,16 +518,16 @@ export default function LavorPage() {
               <TableBody>
                 {paginatedData.map((itv, i) => {
                   const totalPausasMin = itv.pausas.reduce(
-                    (acc, p) => acc + p.duracionMinutos,
+                    (acc: number, p: any) => acc + p.duracionMinutos,
                     0,
                   );
-                  const diff = itv.minutes - itv.tiempoEstimado;
+                  const diff = itv.minutes - itv.tiempoEstimado; // Cálculo de Diferencia
                   const isOver = diff > 0;
 
                   return (
-                    <TableRow key={i}>
+                    <TableRow key={itv.id || i}>
                       <TableCell className="text-center font-mono text-xs">
-                        {formatTime(new Date(itv.start))}
+                        <span>{formatTime(new Date(itv.start))}</span>
                       </TableCell>
                       <TableCell className="text-center font-mono text-xs">
                         {itv.end === new Date().toISOString()
@@ -572,9 +588,11 @@ export default function LavorPage() {
                                 {formatDuration(totalPausasMin)}
                               </span>
                               <span className="text-[10px] text-neutral-500 mt-1">
-                                {itv.pausas.map((p, idx) => (
-                                  <div key={idx}>{p.motivo}</div>
-                                ))}
+                                {itv.pausas.map(
+                                  (p: { motivo: string }, idx: string) => (
+                                    <div key={idx}>{p.motivo}</div>
+                                  ),
+                                )}
                               </span>
                             </>
                           ) : (
@@ -584,6 +602,14 @@ export default function LavorPage() {
                       </TableCell>
                       <TableCell className="text-center text-sm">
                         {itv.operacion}
+                        {/* {itv.esColaboracion && (
+                          <Badge
+                            variant="outline"
+                            className="text-[8px] bg-indigo-100 text-indigo-700 border-indigo-200 py-0"
+                          >
+                            COLABORACIÓN
+                          </Badge>
+                        )} */}
                       </TableCell>
                     </TableRow>
                   );

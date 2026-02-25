@@ -1,59 +1,86 @@
-const machines = useMemo(() => {
-    if (!data?.maquinas) return [];
-
-    const normalize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const mapped = data.maquinas.map((mc) => {
-      const activeSession = mc.sesionActual ?? null;
-
-      // Determinamos el estado:
-      // 1. Si no hay sesión, es IDLE.
-      // 2. Si hay una pausa sin 'horaFin', es PAUSED.
-      // 3. Si hay sesión y no está pausada, es RUNNING.
-      let status: MachineStatus = "idle";
-      if (activeSession) {
-        const hasOpenPause = activeSession.pausas?.some(
-          (p) => p.horaFin == null,
-        );
-        status = hasOpenPause ? "paused" : "running";
+const GET_USUARIO = gql`
+  query GetUsuario($numero: String!) {
+    usuario(numero: $numero) {
+      id
+      nombre
+      historialSesiones {
+        id
+        horaInicio
+        horaFin
+        tiempoEfectivo
+        tiempoTotal
+        observaciones
+        pausas {
+          id
+          duracionMinutos
+          motivo
+        }
+        maquina {
+          nombre
+        }
+        procesoOp {
+          tiempoEstimado
+          proceso {
+            nombre
+          }
+          operacion {
+            operacion
+            proyecto {
+              proyecto
+            }
+          }
+        }
       }
+    }
+  }
+`;
 
-      return {
-        id: mc.id,
-        name: mc.nombre,
-        piece: activeSession?.procesoOp?.operacion?.operacion || null,
-        operator: activeSession?.usuario?.nombre || null,
-        status,
-        startedAt: activeSession?.horaInicio || null,
-        tiempoEfectivoServer: activeSession?.tiempoEfectivo || 0,
-        cycleTargetMin: activeSession?.procesoOp?.tiempoEstimado ?? undefined,
-        operationId: activeSession?.procesoOp?.operacion?.operacion || "S/N",
-        area: mc.proceso?.nombre || "General",
-      };
-    });
 
-    // Ordenamiento por área según desiredOrder
-    return [...mapped].sort((a, b) => {
-      const indexA = desiredOrder.findIndex(
-        (d) => normalize(d) === normalize(a.area),
-      );
-      const indexB = desiredOrder.findIndex(
-        (d) => normalize(d) === normalize(b.area),
-      );
 
-      const posA = indexA === -1 ? 999 : indexA;
-      const posB = indexB === -1 ? 999 : indexB;
 
-      if (posA === posB) {
-        return a.name.localeCompare(b.name);
+
+const GET_USUARIO = gql`
+  query GetUsuario($numero: String!) {
+    usuario(numero: $numero) {
+      id
+      nombre
+      historialSesiones {
+        ...SesionFields
       }
-      return posA - posB;
-    });
-  }, [data, tick]);
+      colaboraciones {
+        sesionPrincipal {
+          ...SesionFields
+        }
+      }
+    }
+  }
+
+  fragment SesionFields on SesionTrabajoType {
+    id
+    horaInicio
+    horaFin
+    tiempoEfectivo
+    tiempoTotal
+    observaciones
+    pausas {
+      id
+      duracionMinutos
+      motivo
+    }
+    maquina {
+      nombre
+    }
+    procesoOp {
+      tiempoEstimado
+      proceso {
+        nombre
+      }
+      operacion {
+        operacion
+        proyecto {
+          proyecto
+        }
+      }
+    }
+  }
+`;
