@@ -3,8 +3,6 @@ import { gql } from "@apollo/client";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
 import { sileo } from "sileo";
 import { CheckCircle2, Clock } from "lucide-react";
-
-// Componentes UI
 import {
   Card,
   CardHeader,
@@ -25,12 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Componentes de Acción (Importados)
 import { AccionIndirecto } from "./scan-actions/indirecto";
 import { AccionScrap } from "./scan-actions/scrap";
 import { AccionPausa } from "./scan-actions/pausa";
 import { AccionProblema } from "./scan-actions/problema";
 import { AccionSetup } from "./scan-actions/setup-time";
+import { AccionColaboracion } from "./scan-actions/colaboracion";
 import { cn } from "@/lib/utils";
 
 /* --------------------------------- Interfaces -------------------------------- */
@@ -53,10 +51,10 @@ interface ProcesoOpData {
       horaFin: string | null;
       pausas: Array<{
         id: string;
-        horaInicio: string | null; // Agregado
+        horaInicio: string | null;
         horaFin: string | null;
-        motivo: string | null; // Agregado
-        duracionMinutos: number | null; // Agregado
+        motivo: string | null;
+        duracionMinutos: number | null;
       }>;
     }>;
     horaInicio: string | null;
@@ -323,8 +321,6 @@ export default function ScanStation() {
 
   const [registrarObs] = useMutation(REGISTRAR_OBSERVACION);
 
-  // const [crearGemela] = useMutation(CREAR_GEMELA);
-
   useEffect(() => {
     let intervalo: ReturnType<typeof setInterval>;
     if (
@@ -520,13 +516,16 @@ export default function ScanStation() {
                 </p>
               )}
             </div>
+            {procesoEspecifico?.proceso.nombre === "Pintura" && sesionId && (
+              <AccionColaboracion sesionId={sesionId} />
+            )}
             <div>
               <Label className="mb-1">Máquina</Label>
               <Select
                 onValueChange={setMaquinaSeleccionadaId}
                 value={maquinaSeleccionadaId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Seleccione..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -543,7 +542,6 @@ export default function ScanStation() {
               size="lg"
               className={cn(
                 "w-full h-10 transition-all disabled:cursor-not-allowed",
-                // Cambiamos a Ámbar si está trabajando para indicar "Pendiente de cierre"
                 estaTrabajandoPieza
                   ? "bg-amber-600 hover:bg-amber-700 animate-pulse"
                   : "bg-indigo-600 hover:bg-indigo-700",
@@ -684,7 +682,7 @@ export default function ScanStation() {
             </>
           ))}
 
-        {procesoEspecifico && (
+        {procesoEspecifico?.proceso.nombre === "Programación CNC" && (
           <AccionSetup
             procesoOpId={procesoEspecifico.id}
             workOrder={workOrder}
