@@ -2,6 +2,7 @@ import { useState } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { sileo } from "sileo";
+import { Settings2 } from "lucide-react"; // Icono sugerido
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 
 const GET_PROCESO_MAQUINADO = gql`
@@ -56,16 +58,12 @@ interface SetupTimeProps {
   onSuccess: () => void;
 }
 
-export function AccionSetup({
-  workOrder,
-  isOpen,
-  setIsOpen,
-  onSuccess,
-}: SetupTimeProps) {
+export function AccionSetup({ workOrder, onSuccess }: SetupTimeProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [tiempo, setTiempo] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Buscamos el proceso de Maquinado relacionado
+  // Buscamos el proceso de Maquinado relacionado (ID 4)
   const { data, loading: loadingQuery } = useQuery<ProcesoMaquinadoData>(
     GET_PROCESO_MAQUINADO,
     {
@@ -85,65 +83,46 @@ export function AccionSetup({
 
     if (!maquinadoId) {
       return sileo.error({
-        duration: 3000,
-        title: "No se encontró el proceso de Maquinado",
-        description: "No se pudo asignar el tiempo de setup.",
+        title: "No se encontró proceso de Maquinado",
+        description: "No hay un proceso ID 4 vinculado a esta WO.",
         fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
         position: "top-center",
       });
     }
 
     if (isNaN(valorSetup) || valorSetup < 0) {
       return sileo.error({
-        duration: 3000,
-        title: "Tiempo de setup inválido",
-        description: "Ingrese un tiempo de setup válido.",
+        title: "Tiempo inválido",
+        description: "Ingrese un número mayor o igual a 0.",
         fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
         position: "top-center",
       });
     }
 
     setLoading(true);
     try {
-      // 1. Asignamos el tiempo al proceso de MAQUINADO (ID 4)
       await updateSetup({
         variables: {
-          procesoOpId: maquinadoId, // <-- ID del proceso 4
+          procesoOpId: maquinadoId,
           tiempoSetup: valorSetup,
         },
       });
 
       sileo.success({
-        duration: 3000,
-        title: "✅ Setup asignado a Maquinado",
-        description: "Programación finalizada.",
+        title: "✅ Setup Asignado",
+        description: "Tiempo guardado en el proceso de Maquinado.",
         fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
         position: "top-center",
       });
+
       setIsOpen(false);
-      onSuccess();
+      setTiempo("");
+      if (onSuccess) onSuccess();
     } catch (e: any) {
       sileo.error({
-        duration: 3000,
-        title: "Error al asignar setup",
+        title: "Error al guardar",
         description: e.message,
         fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
         position: "top-center",
       });
     } finally {
@@ -153,24 +132,33 @@ export function AccionSetup({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full gap-2 border-orange-300 text-orange-600 hover:bg-orange-50"
+        >
+          <Settings2 className="h-4 w-4" /> Tiempo Setup
+        </Button>
+      </DialogTrigger>
+
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Finalizar Programación</DialogTitle>
+          <DialogTitle>Registrar Tiempo de Setup</DialogTitle>
           <DialogDescription>
-            El tiempo de setup ingresado se asignará al proceso de{" "}
-            <b>Maquinado CNC</b>.
+            El tiempo ingresado se asignará al proceso de <b>Maquinado CNC</b>{" "}
+            para esta orden.
           </DialogDescription>
         </DialogHeader>
 
         {loadingQuery ? (
-          <div className="py-4 text-center">
-            Buscando proceso de maquinado...
+          <div className="py-4 text-center text-sm text-muted-foreground italic">
+            Buscando proceso de maquinado destino...
           </div>
         ) : (
           <div className="grid gap-4 py-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="setup" className="text-orange-600 font-bold">
-                Tiempo de Setup para Maquinado (Minutos)
+                Minutos de Setup
               </Label>
               <Input
                 id="setup"
@@ -179,6 +167,7 @@ export function AccionSetup({
                 onChange={(e) => setTiempo(e.target.value)}
                 placeholder="Ej. 45"
                 autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
               />
             </div>
           </div>
@@ -189,11 +178,11 @@ export function AccionSetup({
             Cancelar
           </Button>
           <Button
-            className="bg-orange-600"
+            className="bg-orange-600 hover:bg-orange-700"
             onClick={handleConfirm}
-            disabled={loading || loadingQuery}
+            disabled={loading || loadingQuery || !tiempo}
           >
-            {loading ? "Guardando..." : "Confirmar y Finalizar"}
+            {loading ? "Guardando..." : "Confirmar Setup"}
           </Button>
         </DialogFooter>
       </DialogContent>

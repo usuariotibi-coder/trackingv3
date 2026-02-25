@@ -516,7 +516,7 @@ export default function ScanStation() {
                 </p>
               )}
             </div>
-            {procesoEspecifico?.proceso.nombre === "Pintura" && sesionId && (
+            {procesoEspecifico?.proceso.nombre === "Pailería" && sesionId && (
               <AccionColaboracion sesionId={sesionId} />
             )}
             <div>
@@ -568,6 +568,18 @@ export default function ScanStation() {
                         ? `Finalizar Pieza #${numeroPiezaVisual}`
                         : `Iniciar Pieza #${numeroPiezaVisual}`}
             </Button>
+            {procesoEspecifico?.proceso.nombre === "Programación CNC" && (
+              <AccionSetup
+                procesoOpId={procesoEspecifico.id}
+                workOrder={workOrder}
+                isOpen={isFinalizeModalOpen}
+                setIsOpen={setIsFinalizeModalOpen}
+                onSuccess={() => {
+                  limpiarEstacion();
+                  refetchP();
+                }}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -681,19 +693,6 @@ export default function ScanStation() {
               <AccionProblema sesionId={sesionId} onActionSuccess={refetchP} />
             </>
           ))}
-
-        {procesoEspecifico?.proceso.nombre === "Programación CNC" && (
-          <AccionSetup
-            procesoOpId={procesoEspecifico.id}
-            workOrder={workOrder}
-            isOpen={isFinalizeModalOpen}
-            setIsOpen={setIsFinalizeModalOpen}
-            onSuccess={() => {
-              limpiarEstacion();
-              refetchP();
-            }}
-          />
-        )}
       </div>
     </div>
   );

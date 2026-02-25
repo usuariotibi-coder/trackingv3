@@ -27,6 +27,7 @@ type Machine = {
   cycleTargetMin?: number;
   operationId?: string;
   area: string;
+  isMultiSession?: boolean;
 };
 
 type GetMonitoreoMaquinasQuery = {
@@ -34,10 +35,10 @@ type GetMonitoreoMaquinasQuery = {
     id: string;
     nombre: string;
     proceso: { nombre: string } | null;
-    sesionActual: {
-      // <-- Cambiado de Array a objeto único
+    historialSesiones: Array<{
       id: string;
       horaInicio?: string | null;
+      horaFin?: string | null;
       tiempoEfectivo?: number | null;
       usuario?: { nombre: string } | null;
       procesoOp?: {
@@ -52,7 +53,7 @@ type GetMonitoreoMaquinasQuery = {
         } | null;
       } | null;
       pausas: Array<{ id: string; horaFin: string | null }>;
-    } | null;
+    }> | null;
   }>;
 };
 
@@ -152,9 +153,10 @@ export default function MaquinasDashboardPage() {
         proceso {
           nombre
         }
-        sesionActual {
+        historialSesiones {
           id
           horaInicio
+          horaFin
           tiempoEfectivo
           usuario {
             nombre
@@ -226,37 +228,44 @@ export default function MaquinasDashboardPage() {
         .replace(/\s+/g, " ")
         .trim();
 
-    const mapped = data.maquinas.map((mc) => {
-      const activeSession = mc.sesionActual ?? null;
+    const activeEntries: any[] = [];
 
-      // Determinamos el estado:
-      // 1. Si no hay sesión, es IDLE.
-      // 2. Si hay una pausa sin 'horaFin', es PAUSED.
-      // 3. Si hay sesión y no está pausada, es RUNNING.
-      let status: MachineStatus = "idle";
-      if (activeSession) {
-        const hasOpenPause = activeSession.pausas?.some(
-          (p) => p.horaFin == null,
-        );
-        status = hasOpenPause ? "paused" : "running";
+    data.maquinas.forEach((mc) => {
+      // Filtramos solo las sesiones que NO tienen hora de fin (están activas)
+      const openSessions =
+        mc.historialSesiones?.filter((s) => s.horaFin === null) || [];
+
+      if (openSessions.length === 0) {
+        // Si no hay sesiones, agregamos la máquina como IDLE (una sola vez)
+        activeEntries.push({
+          id: `${mc.id}-idle`,
+          name: mc.nombre,
+          status: "idle",
+          area: mc.proceso?.nombre || "General",
+        });
+      } else {
+        // Si hay N sesiones, creamos N tarjetas para esta máquina
+        openSessions.forEach((session) => {
+          const hasOpenPause = session.pausas?.some((p) => p.horaFin == null);
+
+          activeEntries.push({
+            id: session.id, // Usamos el ID de la sesión como key única
+            name: mc.nombre,
+            piece: session.procesoOp?.operacion?.operacion || null,
+            operator: session.usuario?.nombre || null,
+            status: hasOpenPause ? "paused" : "running",
+            startedAt: session.horaInicio,
+            tiempoEfectivoServer: session.tiempoEfectivo || 0,
+            cycleTargetMin: session.procesoOp?.tiempoEstimado,
+            area: mc.proceso?.nombre || "General",
+            isMultiSession: openSessions.length > 1, // Para mostrar un indicador visual si quieres
+          });
+        });
       }
-
-      return {
-        id: mc.id,
-        name: mc.nombre,
-        piece: activeSession?.procesoOp?.operacion?.operacion || null,
-        operator: activeSession?.usuario?.nombre || null,
-        status,
-        startedAt: activeSession?.horaInicio || null,
-        tiempoEfectivoServer: activeSession?.tiempoEfectivo || 0,
-        cycleTargetMin: activeSession?.procesoOp?.tiempoEstimado ?? undefined,
-        operationId: activeSession?.procesoOp?.operacion?.operacion || "S/N",
-        area: mc.proceso?.nombre || "General",
-      };
     });
 
     // Ordenamiento por área según desiredOrder
-    return [...mapped].sort((a, b) => {
+    return [...activeEntries].sort((a, b) => {
       const indexA = desiredOrder.findIndex(
         (d) => normalize(d) === normalize(a.area),
       );
@@ -394,7 +403,7 @@ export default function MaquinasDashboardPage() {
             if (!machinesInArea || machinesInArea.length === 0) return null;
 
             return (
-              <section key={key} className="flex-none mb-10">
+              <section key={key} className="flex-none mb-12">
                 {/* Header de área compacto */}
                 <div className="flex items-center gap-2 mb-3 border-b border-neutral-200 pb-1.5">
                   <h2 className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
@@ -496,7 +505,14 @@ function MachineCard({
       <CardContent className="pl-3 pr-3 pt-0 space-y-2 text-[12px]">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold truncate">
-            {m.name}
+            <div>{m.name}</div>
+            <div>
+              {m.isMultiSession && (
+                <span className="text-[9px] text-indigo-600 font-bold uppercase">
+                  Multi-pieza
+                </span>
+              )}
+            </div>
           </CardTitle>
           <span
             className={cn(

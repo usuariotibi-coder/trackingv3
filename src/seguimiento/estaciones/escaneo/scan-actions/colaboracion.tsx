@@ -47,6 +47,10 @@ export function AccionColaboracion({ sesionId }: { sesionId: string }) {
           description: `${data.registrarColaboracion.usuario.nombre} se ha sumado a la sesión.`,
           fill: "black",
           position: "top-center",
+          styles: {
+            title: "text-white!",
+            description: "text-white/75!",
+          },
         });
         setOpen(false);
         setNumero("");
