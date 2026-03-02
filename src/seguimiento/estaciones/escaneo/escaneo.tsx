@@ -183,8 +183,8 @@ const INICIAR_SESION = gql`
 `;
 
 const GET_SESION_ACTIVA = gql`
-  query GetSesionActiva($numero: String!) {
-    sesionActivaPorNomina(numeroEmpleado: $numero) {
+  query GetSesionActiva($numero: String!, $maquinaId: ID!) {
+    sesionActivaPorNomina(numeroEmpleado: $numero, maquinaId: $maquinaId) {
       id
       procesoOp {
         id
@@ -254,6 +254,12 @@ export default function ScanStation() {
   });
 
   const [registrarSesion] = useMutation<RegistrarSesionRes>(INICIAR_SESION, {
+    refetchQueries: [
+      {
+        query: GET_SESION_ACTIVA,
+        variables: { numero: employeeId, maquinaId: maquinaSeleccionadaId },
+      },
+    ],
     onCompleted: (data) => {
       console.log("Resultado:", data?.registrarSesionTrabajo);
       sileo.success({
@@ -270,6 +276,7 @@ export default function ScanStation() {
         position: "top-center",
       });
       setSesionId(data?.registrarSesionTrabajo.id || "");
+      setMaquinaSeleccionadaId(undefined);
     },
     onError: (error) => {
       sileo.error({
@@ -290,10 +297,15 @@ export default function ScanStation() {
     useLazyQuery<SesionActivaData>(GET_SESION_ACTIVA);
 
   useEffect(() => {
-    if (employeeId.length >= 4) {
-      consultarSesion({ variables: { numero: employeeId } });
+    if (employeeId.length >= 4 && maquinaSeleccionadaId) {
+      consultarSesion({
+        variables: {
+          numero: employeeId,
+          maquinaId: maquinaSeleccionadaId,
+        },
+      });
     }
-  }, [employeeId]);
+  }, [employeeId, maquinaSeleccionadaId]);
 
   useEffect(() => {
     if (data?.sesionActivaPorNomina) {
@@ -311,13 +323,14 @@ export default function ScanStation() {
     }
   }, [data]);
 
-  const estaTrabajandoPieza = procesoEspecifico
-    ? procesoEspecifico.conteoParcial > procesoEspecifico.conteoActual
-    : false;
+  const estaTrabajandoPieza = !!(
+    data?.sesionActivaPorNomina &&
+    data.sesionActivaPorNomina.procesoOp.id === procesoEspecifico?.id
+  );
 
   const numeroPiezaVisual = estaTrabajandoPieza
-    ? procesoEspecifico?.conteoParcial
-    : (procesoEspecifico?.conteoActual || 0) + 1;
+    ? (procesoEspecifico?.conteoActual || 0) + 1
+    : (procesoEspecifico?.conteoParcial || 0) + 1;
 
   const [registrarObs] = useMutation(REGISTRAR_OBSERVACION);
 
@@ -552,6 +565,7 @@ export default function ScanStation() {
               onClick={handleAction}
               disabled={
                 !procesoEspecifico ||
+                !maquinaSeleccionadaId ||
                 procesoEspecifico.estado === "done" ||
                 botonBloqueado
               }
@@ -564,7 +578,7 @@ export default function ScanStation() {
                     ? "Sesión en Pausa"
                     : procesoEspecifico.estado === "done"
                       ? "Orden Finalizada"
-                      : estaTrabajandoPieza
+                      : estaTrabajandoPieza && maquinaSeleccionadaId
                         ? `Finalizar Pieza #${numeroPiezaVisual}`
                         : `Iniciar Pieza #${numeroPiezaVisual}`}
             </Button>
