@@ -412,8 +412,8 @@ export default function MaquinasDashboardPage() {
             if (!machinesInArea || machinesInArea.length === 0) return null;
 
             return (
-              <section key={key} className="mb-12">
-                {/* Header de área compacto */}
+              <section key={key} className="w-full mb-12">
+                {" "}
                 <div className="flex items-center gap-2 mb-3 border-b border-neutral-200 pb-1.5">
                   <h2 className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
                     {areaName}
@@ -425,11 +425,9 @@ export default function MaquinasDashboardPage() {
                     {machinesInArea.length}
                   </Badge>
                 </div>
-
-                {/* Contenedor de cards con flujo flexible */}
-                <div className="flex flex-wrap gap-x-10 gap-y-25 items-start mt-10 mb-5 w-full">
+                <div className="flex flex-wrap gap-4 gap-y-25">
                   {machinesInArea.map((m) => (
-                    <div key={m.id} className="w-[190px] h-[210px] flex-none">
+                    <div key={m.id} className="w-[190px] h-[210px] shrink-0">
                       <MachineCard m={m} tick={tick} />
                     </div>
                   ))}
@@ -438,7 +436,6 @@ export default function MaquinasDashboardPage() {
             );
           })}
 
-          {/* 2. Sección de "Otros Procesos" integrada al flujo horizontal */}
           {Object.keys(groupedMachines).some(
             (k) => !desiredOrder.map(normalize).includes(k),
           ) && (

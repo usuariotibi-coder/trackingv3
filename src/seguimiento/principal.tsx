@@ -93,7 +93,7 @@ export default function ProyectosPage() {
 
   // Refetch datos en vivo cada minuto
   useEffect(() => {
-    const t = setInterval(() => refetch(), 60000);
+    const t = setInterval(() => refetch(), 180000);
     return () => clearInterval(t);
   }, [refetch]);
 
