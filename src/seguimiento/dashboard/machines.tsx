@@ -214,7 +214,7 @@ export default function MaquinasDashboardPage() {
   ];
 
   useEffect(() => {
-    const t = setInterval(() => refetch(), 30000);
+    const t = setInterval(() => refetch(), 180000);
     return () => clearInterval(t);
   }, [refetch]);
 
@@ -412,7 +412,7 @@ export default function MaquinasDashboardPage() {
             if (!machinesInArea || machinesInArea.length === 0) return null;
 
             return (
-              <section key={key} className="flex-none mb-12">
+              <section key={key} className="mb-12">
                 {/* Header de área compacto */}
                 <div className="flex items-center gap-2 mb-3 border-b border-neutral-200 pb-1.5">
                   <h2 className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
@@ -427,7 +427,7 @@ export default function MaquinasDashboardPage() {
                 </div>
 
                 {/* Contenedor de cards con flujo flexible */}
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-x-10 gap-y-25 items-start mt-10 mb-5 w-full">
                   {machinesInArea.map((m) => (
                     <div key={m.id} className="w-[190px] h-[210px] flex-none">
                       <MachineCard m={m} tick={tick} />
