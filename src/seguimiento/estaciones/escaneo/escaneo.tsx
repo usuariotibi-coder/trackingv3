@@ -219,9 +219,8 @@ export default function ScanStation() {
   const [employeeId, setEmployeeId] = useState("");
   const [sesionId, setSesionId] = useState<string | null>(null);
   const [workOrder, setWorkOrder] = useState("");
-  const [maquinaSeleccionadaId, setMaquinaSeleccionadaId] = useState<
-    string | undefined
-  >(undefined);
+  const [maquinaSeleccionadaId, setMaquinaSeleccionadaId] =
+    useState<string>("");
   const [tiempoTranscurrido, setTiempoTranscurrido] = useState("00:00:00");
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
   const [bloqueadoPorPausa, setBloqueadoPorPausa] = useState(false);
@@ -276,7 +275,7 @@ export default function ScanStation() {
         position: "top-center",
       });
       setSesionId(data?.registrarSesionTrabajo.id || "");
-      setMaquinaSeleccionadaId(undefined);
+      setMaquinaSeleccionadaId("");
     },
     onError: (error) => {
       sileo.error({
@@ -405,7 +404,7 @@ export default function ScanStation() {
 
   const limpiarEstacion = () => {
     setWorkOrder("");
-    setMaquinaSeleccionadaId(undefined);
+    setMaquinaSeleccionadaId("");
     woInputRef.current?.focus();
   };
 
@@ -536,7 +535,7 @@ export default function ScanStation() {
               <Label className="mb-1">Máquina</Label>
               <Select
                 onValueChange={setMaquinaSeleccionadaId}
-                value={maquinaSeleccionadaId}
+                value={maquinaSeleccionadaId || ""}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Seleccione..." />
