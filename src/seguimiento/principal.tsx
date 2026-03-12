@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, memo, useCallback, useRef } from "react";
 import { gql, NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { RefreshCw } from "lucide-react";
@@ -38,13 +38,24 @@ type OperacionesQueryResult = {
   }>;
 };
 
-function formatDuration(totalMinutes: number): string {
+// Memoizar función de formato para evitar recálculos innecesarios
+const formatDuration = (totalMinutes: number): string => {
   const roundedMins = Math.round(totalMinutes);
   if (roundedMins < 60) return `${roundedMins}m`;
   const hours = Math.floor(roundedMins / 60);
   const mins = roundedMins % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-}
+};
+
+// Normalizar strings una sola vez
+const normalize = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const GET_DATOS = gql`
   query GetAvanceProyectos {
@@ -72,18 +83,25 @@ const GET_DATOS = gql`
   }
 `;
 
+// Orden deseado optimizado (calculado una sola vez)
+const DESIRED_PROCESS_ORDER = [
+  "corte",
+  "escuadre",
+  "programacion cnc",
+  "maquinado cnc",
+  "paileria",
+  "pintura",
+  "calidad",
+  "almacen",
+];
+
 export default function ProyectosPage() {
-  const [tick, setTick] = useState(0);
   const [sortBy, setSortBy] = useState<"progress" | "name" | "urgency">(
     "progress",
   );
+  const notificationShownRef = useRef(false);
 
-  useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const { error, loading, data, refetch, networkStatus } =
+  const { error, data, refetch, networkStatus } =
     useQuery<OperacionesQueryResult>(GET_DATOS, {
       notifyOnNetworkStatusChange: true,
       fetchPolicy: "cache-and-network",
@@ -91,7 +109,7 @@ export default function ProyectosPage() {
 
   const isRefetching = networkStatus === NetworkStatus.refetch;
 
-  // Refetch datos en vivo cada minuto
+  // Refetch datos en vivo cada 3 minutos - sin necesidad de tick
   useEffect(() => {
     const t = setInterval(() => refetch(), 180000);
     return () => clearInterval(t);
@@ -143,27 +161,6 @@ export default function ProyectosPage() {
       return acc;
     }, {});
 
-    // Orden deseado por el usuario (de izquierda a derecha)
-    const desiredOrder = [
-      "corte",
-      "escuadre",
-      "programacion cnc",
-      "maquinado cnc",
-      "paileria",
-      "pintura",
-      "calidad",
-      "almacen",
-    ];
-
-    const normalize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-
     const result = Object.entries(proyectosMap).map(
       ([id, stats]: [string, any]) => {
         const pct =
@@ -173,6 +170,7 @@ export default function ProyectosPage() {
                 Math.round((stats.totalActual / stats.totalMeta) * 100),
               )
             : 0;
+
         // Construir mapa normalizado de procesos
         const procMap = Object.entries(stats.detalleProcesos).reduce(
           (m: any, [nombre, stat]: any) => {
@@ -184,7 +182,7 @@ export default function ProyectosPage() {
 
         const orderedProcesos: Record<string, any> = {};
         // Agregar procesos en el orden deseado
-        desiredOrder.forEach((d) => {
+        DESIRED_PROCESS_ORDER.forEach((d) => {
           const key = normalize(d);
           if (procMap[key]) {
             const { nombre, stat } = procMap[key];
@@ -229,10 +227,12 @@ export default function ProyectosPage() {
       if (sortBy === "name") return a.code.localeCompare(b.code);
       return 0;
     });
-  }, [data, tick, sortBy]);
+  }, [data, sortBy]);
 
+  // Mostrar notificación solo cuando empiece el refetch (no en cada render)
   useEffect(() => {
-    if (isRefetching || loading) {
+    if (isRefetching && !notificationShownRef.current) {
+      notificationShownRef.current = true;
       sileo.info({
         duration: 3000,
         title: "Sincronizando datos en vivo",
@@ -246,8 +246,17 @@ export default function ProyectosPage() {
         },
         position: "top-center",
       });
+    } else if (!isRefetching) {
+      notificationShownRef.current = false;
     }
-  }, [isRefetching, loading]);
+  }, [isRefetching]);
+
+  const handleSortChange = useCallback(
+    (newSort: "progress" | "name" | "urgency") => {
+      setSortBy(newSort);
+    },
+    [],
+  );
 
   return (
     <div className="min-h-screen bg-white px-5 py-10 text-neutral-900 lg:px-8">
@@ -264,17 +273,17 @@ export default function ProyectosPage() {
                 <FilterButton
                   active={sortBy === "progress"}
                   label="Avance (100-0%)"
-                  onClick={() => setSortBy("progress")}
+                  onClick={() => handleSortChange("progress")}
                 />
                 <FilterButton
                   active={sortBy === "urgency"}
                   label="Urgencia (0-100%)"
-                  onClick={() => setSortBy("urgency")}
+                  onClick={() => handleSortChange("urgency")}
                 />
                 <FilterButton
                   active={sortBy === "name"}
                   label="Nombre"
-                  onClick={() => setSortBy("name")}
+                  onClick={() => handleSortChange("name")}
                 />
               </div>
             </div>
@@ -297,15 +306,18 @@ export default function ProyectosPage() {
   );
 }
 
-function getProjectAccentClass(project: ProjectCard) {
-  const progress = project.progressPct;
+function getProjectAccentClass(progress: number): string {
   if (progress < 30) return "bg-red-500";
   if (progress < 90) return "bg-orange-500";
   return "bg-emerald-500";
 }
 
-function ProjectProgressCard({ project }: { project: ProjectCard }) {
-  const accentClass = getProjectAccentClass(project);
+const ProjectProgressCard = memo(function ProjectProgressCard({
+  project,
+}: {
+  project: ProjectCard;
+}) {
+  const accentClass = getProjectAccentClass(project.progressPct);
 
   return (
     <section className="relative pl-3">
@@ -350,9 +362,13 @@ function ProjectProgressCard({ project }: { project: ProjectCard }) {
       </div>
     </section>
   );
-}
+});
 
-function ProcessProgressCard({ process }: { process: ProcessCard }) {
+const ProcessProgressCard = memo(function ProcessProgressCard({
+  process,
+}: {
+  process: ProcessCard;
+}) {
   const pct =
     process.total > 0
       ? Math.round((process.completed / process.total) * 100)
@@ -385,9 +401,9 @@ function ProcessProgressCard({ process }: { process: ProcessCard }) {
       </div>
     </article>
   );
-}
+});
 
-function ProgressBar({
+const ProgressBar = memo(function ProgressBar({
   value,
   className,
   fillClassName,
@@ -412,9 +428,9 @@ function ProgressBar({
       />
     </div>
   );
-}
+});
 
-function FilterButton({
+const FilterButton = memo(function FilterButton({
   active,
   label,
   onClick,
@@ -436,4 +452,4 @@ function FilterButton({
       {label}
     </button>
   );
-}
+});

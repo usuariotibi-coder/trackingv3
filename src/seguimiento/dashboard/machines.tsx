@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, memo, useRef } from "react";
 import { gql, NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Card, CardTitle, CardContent } from "@/components/ui/card";
@@ -59,29 +59,52 @@ type GetMonitoreoMaquinasQuery = {
   }>;
 };
 
-function formatDuration(totalMinutes: number): string {
+// Funciones globales memoizadas
+const formatDuration = (totalMinutes: number): string => {
   const roundedMins = Math.round(totalMinutes);
   if (roundedMins < 60) return `${roundedMins}m`;
   const hours = Math.floor(roundedMins / 60);
   const mins = roundedMins % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-}
+};
 
-function barPct(elapsed: number, target: number) {
+const barPct = (elapsed: number, target: number): number => {
   if (!target || target <= 0) return 0;
   return Math.min(100, Math.round((elapsed / target) * 100));
-}
+};
 
 type TimingLevel = "on_time" | "over_25" | "over_50" | "over_50_plus";
 
-function getTimingLevel(elapsed: number, target: number): TimingLevel {
+const getTimingLevel = (elapsed: number, target: number): TimingLevel => {
   if (!target || target <= 0) return "on_time";
   const ratio = elapsed / target;
   if (ratio <= 1) return "on_time";
   if (ratio <= 1.25) return "over_25";
   if (ratio <= 1.5) return "over_50";
   return "over_50_plus";
-}
+};
+
+// Función normalizadora global
+const normalize = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// Orden deseado global
+const DESIRED_ORDER = [
+  "corte",
+  "escuadre",
+  "programacion cnc",
+  "maquinado cnc",
+  "paileria",
+  "pintura",
+  "calidad",
+  "almacen",
+];
 
 function statusColor(machine: Machine, currentElapsed: number) {
   if (machine.status === "paused")
@@ -189,51 +212,28 @@ export default function MaquinasDashboardPage() {
     }
   `;
 
-  const { data, loading, refetch, networkStatus } =
-    useQuery<GetMonitoreoMaquinasQuery>(GET_DATOS, {
+  const { data, refetch, networkStatus } = useQuery<GetMonitoreoMaquinasQuery>(
+    GET_DATOS,
+    {
       notifyOnNetworkStatusChange: true,
       fetchPolicy: "cache-and-network",
-    });
+    },
+  );
 
   const isRefetching = networkStatus === NetworkStatus.refetch;
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MachineStatus>(
     "all",
   );
-  const [tick, setTick] = useState(0);
-
-  const desiredOrder = [
-    "corte",
-    "escuadre",
-    "programacion cnc",
-    "maquinado cnc",
-    "paileria",
-    "pintura",
-    "calidad",
-    "almacen",
-  ];
+  const notificationShownRef = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => refetch(), 180000);
     return () => clearInterval(t);
   }, [refetch]);
 
-  useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 30000);
-    return () => clearInterval(t);
-  }, []);
-
   const machines = useMemo(() => {
     if (!data?.maquinas) return [];
-
-    const normalize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
 
     const activeEntries: any[] = [];
 
@@ -267,18 +267,18 @@ export default function MaquinasDashboardPage() {
             tiempoEfectivoServer: session.tiempoEfectivo || 0,
             cycleTargetMin: session.procesoOp?.tiempoEstimado,
             area: mc.proceso?.nombre || "General",
-            isMultiSession: openSessions.length > 1, // Para mostrar un indicador visual si quieres
+            isMultiSession: openSessions.length > 1,
           });
         });
       }
     });
 
-    // Ordenamiento por área según desiredOrder
+    // Ordenamiento por área según DESIRED_ORDER
     return [...activeEntries].sort((a, b) => {
-      const indexA = desiredOrder.findIndex(
+      const indexA = DESIRED_ORDER.findIndex(
         (d) => normalize(d) === normalize(a.area),
       );
-      const indexB = desiredOrder.findIndex(
+      const indexB = DESIRED_ORDER.findIndex(
         (d) => normalize(d) === normalize(b.area),
       );
 
@@ -290,7 +290,7 @@ export default function MaquinasDashboardPage() {
       }
       return posA - posB;
     });
-  }, [data, tick]);
+  }, [data]);
 
   // Filtrado
   const filtered = useMemo(() => {
@@ -308,15 +308,6 @@ export default function MaquinasDashboardPage() {
   }, [machines, q, statusFilter]);
 
   const groupedMachines = useMemo(() => {
-    const normalize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-
     // 1. Agrupamos las máquinas filtradas por su área normalizada
     const groups: Record<string, typeof filtered> = {};
 
@@ -334,17 +325,10 @@ export default function MaquinasDashboardPage() {
     return groups;
   }, [filtered]);
 
-  const normalize = (s: string) =>
-    s
-      .normalize("NFD")
-      .replace(/\p{Diacritic}/gu, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
+  // Mostrar notificación solo una vez cuando comienza refetch
   useEffect(() => {
-    if (isRefetching || loading) {
+    if (isRefetching && !notificationShownRef.current) {
+      notificationShownRef.current = true;
       sileo.info({
         duration: 3000,
         title: "Sincronizando datos en vivo",
@@ -358,8 +342,10 @@ export default function MaquinasDashboardPage() {
         },
         position: "top-center",
       });
+    } else if (!isRefetching) {
+      notificationShownRef.current = false;
     }
-  }, [isRefetching, loading]);
+  }, [isRefetching]);
 
   return (
     <div className="min-h-screen bg-neutral-50 p-6">
@@ -405,7 +391,7 @@ export default function MaquinasDashboardPage() {
 
         <div className="flex flex-wrap gap-x-10 gap-y-12 items-start mt-10 mb-5">
           {/* Mapeo de áreas en el orden deseado */}
-          {desiredOrder.map((areaName) => {
+          {DESIRED_ORDER.map((areaName) => {
             const key = normalize(areaName);
             const machinesInArea = groupedMachines[key];
 
@@ -428,7 +414,7 @@ export default function MaquinasDashboardPage() {
                 <div className="flex flex-wrap gap-4 gap-y-25">
                   {machinesInArea.map((m) => (
                     <div key={m.id} className="w-[190px] h-[210px] shrink-0">
-                      <MachineCard m={m} tick={tick} />
+                      <MachineCard m={m} />
                     </div>
                   ))}
                 </div>
@@ -437,7 +423,7 @@ export default function MaquinasDashboardPage() {
           })}
 
           {Object.keys(groupedMachines).some(
-            (k) => !desiredOrder.map(normalize).includes(k),
+            (k) => !DESIRED_ORDER.map(normalize).includes(k),
           ) && (
             <section className="flex-none min-w-[200px]">
               <div className="flex items-center gap-2 mb-3 border-b border-neutral-200 pb-1.5">
@@ -447,11 +433,11 @@ export default function MaquinasDashboardPage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 {Object.entries(groupedMachines)
-                  .filter(([k]) => !desiredOrder.map(normalize).includes(k))
+                  .filter(([k]) => !DESIRED_ORDER.map(normalize).includes(k))
                   .flatMap(([_, machines]) => machines)
                   .map((m) => (
                     <div key={m.id} className="w-[190px] flex-none">
-                      <MachineCard m={m} tick={tick} />
+                      <MachineCard m={m} />
                     </div>
                   ))}
               </div>
@@ -466,21 +452,25 @@ export default function MaquinasDashboardPage() {
 // -------------------------------
 // Subcomponentes
 // -------------------------------
-function LegendDot({ className, label }: { className: string; label: string }) {
+const LegendDot = memo(function LegendDot({
+  className,
+  label,
+}: {
+  className: string;
+  label: string;
+}) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
       <span>{label}</span>
     </span>
   );
-}
+});
 
-function MachineCard({
+const MachineCard = memo(function MachineCard({
   m,
-  tick,
 }: {
   m: Machine & { tiempoEfectivoServer: number };
-  tick: number;
 }) {
   const elapsed = useMemo(() => {
     // 1. Si está en pausa, mostrar el tiempo efectivo congelado del servidor
@@ -493,7 +483,7 @@ function MachineCard({
     }
 
     return 0;
-  }, [m.status, m.tiempoEfectivoServer, tick]);
+  }, [m.status, m.tiempoEfectivoServer]);
   const X = m.cycleTargetMin ?? 0;
   const pct = barPct(elapsed, X);
   const color = statusColor(m, elapsed);
@@ -639,9 +629,9 @@ function MachineCard({
       </CardContent>
     </Card>
   );
-}
+});
 
-function Row({
+const Row = memo(function Row({
   label,
   children,
 }: {
@@ -654,9 +644,9 @@ function Row({
       <div className="text-right font-bold text-neutral-700">{children}</div>
     </div>
   );
-}
+});
 
-function StackedRow({
+const StackedRow = memo(function StackedRow({
   label,
   children,
 }: {
@@ -671,9 +661,9 @@ function StackedRow({
       <div className="truncate text-neutral-800 leading-tight">{children}</div>
     </div>
   );
-}
+});
 
-function AcronymLabel({
+const AcronymLabel = memo(function AcronymLabel({
   short,
   description,
 }: {
@@ -693,4 +683,4 @@ function AcronymLabel({
       </span>
     </span>
   );
-}
+});
