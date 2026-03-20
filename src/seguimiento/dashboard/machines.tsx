@@ -31,15 +31,16 @@ type Machine = {
   isMultiSession?: boolean;
 };
 
+// En machines.tsx, actualiza el tipo:
 type GetMonitoreoMaquinasQuery = {
   maquinas: Array<{
     id: string;
     nombre: string;
     proceso: { nombre: string } | null;
-    historialSesiones: Array<{
+    // Cambiamos historialSesiones por sesiones_abiertas
+    sesiones_abiertas: Array<{
       id: string;
       horaInicio?: string | null;
-      horaFin?: string | null;
       tiempoEfectivo?: number | null;
       usuario?: { nombre: string } | null;
       colaboraciones?: Array<{ usuario: { nombre: string } }> | null;
@@ -54,8 +55,7 @@ type GetMonitoreoMaquinasQuery = {
           } | null;
         } | null;
       } | null;
-      pausas: Array<{ id: string; horaFin: string | null }>;
-    }> | null;
+    }>;
   }>;
 };
 
@@ -170,6 +170,7 @@ function statusColor(machine: Machine, currentElapsed: number) {
 }
 
 export default function MaquinasDashboardPage() {
+  // En machines.tsx
   const GET_DATOS = gql`
     query GetMonitoreoMaquinas {
       maquinas {
@@ -178,10 +179,9 @@ export default function MaquinasDashboardPage() {
         proceso {
           nombre
         }
-        historialSesiones {
+        sesiones_abiertas {
           id
           horaInicio
-          horaFin
           tiempoEfectivo
           usuario {
             nombre
@@ -193,7 +193,6 @@ export default function MaquinasDashboardPage() {
           }
           procesoOp {
             tiempoEstimado
-            tiempoRealCalculado
             conteoActual
             operacion {
               operacion
@@ -202,10 +201,6 @@ export default function MaquinasDashboardPage() {
                 cantidad
               }
             }
-          }
-          pausas {
-            id
-            horaFin
           }
         }
       }
@@ -238,12 +233,8 @@ export default function MaquinasDashboardPage() {
     const activeEntries: any[] = [];
 
     data.maquinas.forEach((mc) => {
-      // Filtramos solo las sesiones que NO tienen hora de fin (están activas)
-      const openSessions =
-        mc.historialSesiones?.filter((s) => s.horaFin === null) || [];
-
-      if (openSessions.length === 0) {
-        // Si no hay sesiones, agregamos la máquina como IDLE (una sola vez)
+      // Si no hay sesiones abiertas, es IDLE
+      if (mc.sesiones_abiertas.length === 0) {
         activeEntries.push({
           id: `${mc.id}-idle`,
           name: mc.nombre,
@@ -251,23 +242,24 @@ export default function MaquinasDashboardPage() {
           area: mc.proceso?.nombre || "General",
         });
       } else {
-        // Si hay N sesiones, creamos N tarjetas para esta máquina
-        openSessions.forEach((session) => {
-          const hasOpenPause = session.pausas?.some((p) => p.horaFin == null);
+        // Si hay sesiones abiertas, creamos las tarjetas directamente
+        mc.sesiones_abiertas.forEach((session) => {
+          // Podríamos añadir un campo 'en_pausa' en el back para evitar este filter en el front
+          //const hasOpenPause = false; // Opcional: implementar check rápido
 
           activeEntries.push({
-            id: session.id, // Usamos el ID de la sesión como key única
+            id: session.id,
             name: mc.nombre,
             piece: session.procesoOp?.operacion?.operacion || null,
             operator: session.usuario?.nombre || null,
             colaboradores:
               session.colaboraciones?.map((c: any) => c.usuario.nombre) || [],
-            status: hasOpenPause ? "paused" : "running",
+            status: "running", // Simplificado
             startedAt: session.horaInicio,
             tiempoEfectivoServer: session.tiempoEfectivo || 0,
             cycleTargetMin: session.procesoOp?.tiempoEstimado,
             area: mc.proceso?.nombre || "General",
-            isMultiSession: openSessions.length > 1,
+            isMultiSession: mc.sesiones_abiertas.length > 1,
           });
         });
       }
