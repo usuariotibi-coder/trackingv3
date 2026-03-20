@@ -97,8 +97,8 @@ interface GetUsuariosData {
 }
 
 const GET_USUARIO = gql`
-  query GetUsuario($numero: String!) {
-    usuario(numero: $numero) {
+  query GetUsuario($numero: String!, $fecha: Date) {
+    usuario(numero: $numero, fecha: $fecha) {
       id
       nombre
       historialSesiones {
@@ -178,23 +178,25 @@ export default function LavorPage() {
   const { data: userData } = useQuery<GetUserData>(GET_USUARIO, {
     variables: {
       numero: selectedEmployeeNumero,
+      fecha: date ? format(date, "yyyy-MM-dd") : null,
     },
     skip: !selectedEmployeeNumero,
     fetchPolicy: "network-only",
   });
 
   const timelineData = useMemo(() => {
+    // 1. Verificación de seguridad: Si no hay datos, retornamos estructura vacía
     if (!userData?.usuario) {
       return { intervals: [], totalWorkMin: 0, totalEstMin: 0, chartData: [] };
     }
 
-    // 1. Sesiones Propias
+    // 2. Combinar Sesiones Propias y Colaboraciones
+    // Nota: Al filtrar por fecha en el back, estas listas ya vienen pequeñas (solo las del día)
     const propias = userData.usuario.historialSesiones.map((s: any) => ({
       ...s,
       esColaboracion: false,
     }));
 
-    // 2. Colaboraciones (Aplanamos sesionPrincipal para que sea igual a una sesión propia)
     const colaboraciones = (userData.usuario.historialColaboraciones || []).map(
       (c: any) => ({
         ...c.sesionPrincipal,
@@ -202,7 +204,7 @@ export default function LavorPage() {
       }),
     );
 
-    // 3. Unir y ordenar
+    // Unimos y ordenamos por hora de inicio (más reciente primero para la tabla)
     const todas = [...propias, ...colaboraciones].sort(
       (a, b) =>
         new Date(b.horaInicio).getTime() - new Date(a.horaInicio).getTime(),
@@ -211,14 +213,19 @@ export default function LavorPage() {
     const intervals: any[] = [];
     let totalWorkMin = 0;
     let totalEstMin = 0;
-    const hourBuckets: Record<string, number> = {};
-    for (let i = 6; i <= 22; i++)
-      hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
 
-    // 2. Mapear con los nombres de campos que espera tu <Table>
+    // 3. Inicializar cubetas de horas para la gráfica (6:00 AM a 10:00 PM)
+    const hourBuckets: Record<string, number> = {};
+    for (let i = 6; i <= 22; i++) {
+      hourBuckets[`${i.toString().padStart(2, "0")}:00`] = 0;
+    }
+
+    // 4. Procesar cada sesión
     todas.forEach((s) => {
       const start = new Date(s.horaInicio);
+      // Si la sesión sigue abierta, usamos la hora actual para el cálculo visual
       const end = s.horaFin ? new Date(s.horaFin) : new Date();
+
       const minutes = Math.round(s.tiempoEfectivo || 0);
       const tiempoEstimado = s.procesoOp?.tiempoEstimado || 0;
 
@@ -231,26 +238,33 @@ export default function LavorPage() {
         plano: s.procesoOp?.operacion?.workorder?.plano || "N/A",
         operacion: s.procesoOp?.operacion?.operacion || "N/A",
         proyecto: s.procesoOp?.operacion?.proyecto?.proyecto || "N/A",
+        maquinaNombre: s.maquina?.nombre || "N/A",
         pausas: s.pausas || [],
         esColaboracion: s.esColaboracion,
       });
 
-      totalWorkMin += minutes;
-      totalEstMin += tiempoEstimado;
+      // Solo sumamos al total si la sesión ya terminó (para no inflar eficiencia con datos parciales)
+      if (s.horaFin) {
+        totalWorkMin += minutes;
+        totalEstMin += tiempoEstimado;
+      }
 
-      // Distribución horaria para la gráfica
+      // 5. Distribución horaria para Recharts
+      // Iteramos por las horas que abarca la sesión para llenar la gráfica
       let cursor = new Date(start);
       while (cursor < end) {
         const hourKey = format(cursor, "HH:00");
         if (hourBuckets[hourKey] !== undefined) {
           const nextHour = addHours(startOfHour(cursor), 1);
           const limit = end < nextHour ? end : nextHour;
+          // Sumamos los minutos que caen dentro de esta hora específica
           hourBuckets[hourKey] += (limit.getTime() - cursor.getTime()) / 60000;
         }
         cursor = addHours(startOfHour(cursor), 1);
       }
     });
 
+    // Convertir el objeto de cubetas al formato que espera Recharts
     const chartData = Object.entries(hourBuckets).map(([hour, mins]) => ({
       hour,
       minutos: Math.round(mins),
