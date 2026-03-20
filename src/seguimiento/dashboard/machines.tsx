@@ -37,8 +37,8 @@ type GetMonitoreoMaquinasQuery = {
     id: string;
     nombre: string;
     proceso: { nombre: string } | null;
-    // Cambiamos historialSesiones por sesiones_abiertas
-    sesiones_abiertas: Array<{
+    // Cambiamos historialSesiones por sesionesAbiertas
+    sesionesAbiertas: Array<{
       id: string;
       horaInicio?: string | null;
       tiempoEfectivo?: number | null;
@@ -234,7 +234,7 @@ export default function MaquinasDashboardPage() {
 
     data.maquinas.forEach((mc) => {
       // Si no hay sesiones abiertas, es IDLE
-      if (mc.sesiones_abiertas.length === 0) {
+      if (mc.sesionesAbiertas.length === 0) {
         activeEntries.push({
           id: `${mc.id}-idle`,
           name: mc.nombre,
@@ -243,7 +243,7 @@ export default function MaquinasDashboardPage() {
         });
       } else {
         // Si hay sesiones abiertas, creamos las tarjetas directamente
-        mc.sesiones_abiertas.forEach((session) => {
+        mc.sesionesAbiertas.forEach((session) => {
           // Podríamos añadir un campo 'en_pausa' en el back para evitar este filter en el front
           //const hasOpenPause = false; // Opcional: implementar check rápido
 
@@ -259,7 +259,7 @@ export default function MaquinasDashboardPage() {
             tiempoEfectivoServer: session.tiempoEfectivo || 0,
             cycleTargetMin: session.procesoOp?.tiempoEstimado,
             area: mc.proceso?.nombre || "General",
-            isMultiSession: mc.sesiones_abiertas.length > 1,
+            isMultiSession: mc.sesionesAbiertas.length > 1,
           });
         });
       }
