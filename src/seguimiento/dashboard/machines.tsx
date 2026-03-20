@@ -179,7 +179,7 @@ export default function MaquinasDashboardPage() {
         proceso {
           nombre
         }
-        sesiones_abiertas {
+        sesionesAbiertas {
           id
           horaInicio
           tiempoEfectivo
