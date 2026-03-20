@@ -1,6 +1,18 @@
 import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 
 const typePolicies = {
+  Query: {
+    fields: {
+      maquinas: {
+        merge(existing: any, incoming: any) {
+          return { ...existing, ...incoming };
+        },
+      },
+    },
+  },
+  MaquinaType: {
+    keyFields: ["id"],
+  },
   SesionTrabajoType: {
     fields: {
       procesoOp: {

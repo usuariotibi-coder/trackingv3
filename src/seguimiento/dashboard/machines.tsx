@@ -43,6 +43,7 @@ type GetMonitoreoMaquinasQuery = {
       horaInicio?: string | null;
       tiempoEfectivo?: number | null;
       usuario?: { nombre: string } | null;
+      pausas: Array<{ id: string; horaFin: string | null }>;
       colaboraciones?: Array<{ usuario: { nombre: string } }> | null;
       procesoOp?: {
         conteoActual?: number | null;
@@ -191,6 +192,10 @@ export default function MaquinasDashboardPage() {
               nombre
             }
           }
+          pausas {
+            id
+            horaFin
+          }
           procesoOp {
             tiempoEstimado
             conteoActual
@@ -211,7 +216,8 @@ export default function MaquinasDashboardPage() {
     GET_DATOS,
     {
       notifyOnNetworkStatusChange: true,
-      fetchPolicy: "cache-and-network",
+      fetchPolicy: "cache-first", // Prioriza la velocidad al entrar a la sección
+      nextFetchPolicy: "cache-and-network", // Las actualizaciones en segundo plano mantienen la frescura
     },
   );
 
@@ -233,8 +239,8 @@ export default function MaquinasDashboardPage() {
     const activeEntries: any[] = [];
 
     data.maquinas.forEach((mc) => {
-      // Si no hay sesiones abiertas, es IDLE
-      if (mc.sesionesAbiertas.length === 0) {
+      // Si no hay sesiones abiertas en esta máquina, la mostramos como inactiva (IDLE)
+      if (!mc.sesionesAbiertas || mc.sesionesAbiertas.length === 0) {
         activeEntries.push({
           id: `${mc.id}-idle`,
           name: mc.nombre,
@@ -242,10 +248,10 @@ export default function MaquinasDashboardPage() {
           area: mc.proceso?.nombre || "General",
         });
       } else {
-        // Si hay sesiones abiertas, creamos las tarjetas directamente
+        // Si hay sesiones, creamos una tarjeta por cada sesión activa
         mc.sesionesAbiertas.forEach((session) => {
-          // Podríamos añadir un campo 'en_pausa' en el back para evitar este filter en el front
-          //const hasOpenPause = false; // Opcional: implementar check rápido
+          // Determinamos si está pausada revisando si existe alguna pausa sin hora de fin
+          const hasOpenPause = session.pausas?.some((p) => p.horaFin == null);
 
           activeEntries.push({
             id: session.id,
@@ -254,7 +260,7 @@ export default function MaquinasDashboardPage() {
             operator: session.usuario?.nombre || null,
             colaboradores:
               session.colaboraciones?.map((c: any) => c.usuario.nombre) || [],
-            status: "running", // Simplificado
+            status: hasOpenPause ? "paused" : "running",
             startedAt: session.horaInicio,
             tiempoEfectivoServer: session.tiempoEfectivo || 0,
             cycleTargetMin: session.procesoOp?.tiempoEstimado,
@@ -265,7 +271,7 @@ export default function MaquinasDashboardPage() {
       }
     });
 
-    // Ordenamiento por área según DESIRED_ORDER
+    // El ordenamiento por DESIRED_ORDER se mantiene igual
     return [...activeEntries].sort((a, b) => {
       const indexA = DESIRED_ORDER.findIndex(
         (d) => normalize(d) === normalize(a.area),
@@ -273,14 +279,9 @@ export default function MaquinasDashboardPage() {
       const indexB = DESIRED_ORDER.findIndex(
         (d) => normalize(d) === normalize(b.area),
       );
-
       const posA = indexA === -1 ? 999 : indexA;
       const posB = indexB === -1 ? 999 : indexB;
-
-      if (posA === posB) {
-        return a.name.localeCompare(b.name);
-      }
-      return posA - posB;
+      return posA === posB ? a.name.localeCompare(b.name) : posA - posB;
     });
   }, [data]);
 
@@ -459,169 +460,184 @@ const LegendDot = memo(function LegendDot({
   );
 });
 
-const MachineCard = memo(function MachineCard({
-  m,
-}: {
-  m: Machine & { tiempoEfectivoServer: number };
-}) {
-  const elapsed = useMemo(() => {
-    // 1. Si está en pausa, mostrar el tiempo efectivo congelado del servidor
-    if (m.status === "paused") {
-      return m.tiempoEfectivoServer;
-    }
-    // 2. Si está trabajando, usamos el tiempo efectivo del servidor como base
-    if (m.status === "running" && m.startedAt) {
-      return m.tiempoEfectivoServer;
-    }
+const MachineCard = memo(
+  function MachineCard({
+    m,
+  }: {
+    m: Machine & { tiempoEfectivoServer: number };
+  }) {
+    const elapsed = useMemo(() => {
+      // 1. Si está en pausa, mostrar el tiempo efectivo congelado del servidor
+      if (m.status === "paused") {
+        return m.tiempoEfectivoServer;
+      }
+      // 2. Si está trabajando, usamos el tiempo efectivo del servidor como base
+      if (m.status === "running" && m.startedAt) {
+        return m.tiempoEfectivoServer;
+      }
 
-    return 0;
-  }, [m.status, m.tiempoEfectivoServer]);
-  const X = m.cycleTargetMin ?? 0;
-  const pct = barPct(elapsed, X);
-  const color = statusColor(m, elapsed);
-  const exceededMin = X > 0 ? Math.max(0, elapsed - X) : 0;
-  const timingLevel = getTimingLevel(elapsed, X);
+      return 0;
+    }, [m.status, m.tiempoEfectivoServer]);
+    const X = m.cycleTargetMin ?? 0;
+    const pct = barPct(elapsed, X);
+    const color = statusColor(m, elapsed);
+    const exceededMin = X > 0 ? Math.max(0, elapsed - X) : 0;
+    const timingLevel = getTimingLevel(elapsed, X);
 
-  return (
-    <Card
-      className={cn(
-        "border shadow-sm transition-all pt-2 pb-3",
-        color.border,
-        color.bg,
-      )}
-    >
-      <CardContent className="pl-3 pr-3 pt-0 space-y-2 text-[12px]">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold truncate">
-            <div>{m.name}</div>
-            <div>
-              {m.isMultiSession && (
-                <span className="text-[9px] text-indigo-600 font-bold uppercase">
-                  Multi-pieza
-                </span>
-              )}
-            </div>
-          </CardTitle>
-          <span
-            className={cn(
-              "h-2.5 w-2.5 rounded-full",
-              color.dot,
-              m.status === "running" && "animate-pulse",
-            )}
-          />
-        </div>
-        <StackedRow label="Pieza">
-          {m.piece ? (
-            <strong>{m.piece}</strong>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </StackedRow>
-        <StackedRow label="Operador">
-          {m.operator ? (
-            m.operator.toLowerCase()
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </StackedRow>
-        {m.colaboradores && m.colaboradores.length > 0 && (
-          <>
-            {m.colaboradores.map((nom, idx) => (
-              <div key={idx} className="text-muted-foreground">
-                {nom.toLowerCase()}
-              </div>
-            ))}
-          </>
+    return (
+      <Card
+        className={cn(
+          "border shadow-sm transition-all pt-2 pb-3",
+          color.border,
+          color.bg,
         )}
-        <Row label="Inicio">
-          {(m.status === "running" || m.status === "paused") && m.startedAt ? (
-            new Date(m.startedAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </Row>
-        <Row
-          label={
-            <AcronymLabel
-              short="TRF"
-              description="Tiempo real desde que inició el trabajo."
-            />
-          }
-        >
-          {m.status === "running" || m.status === "paused" ? (
-            formatDuration(elapsed)
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </Row>
-        <Row
-          label={
-            <AcronymLabel
-              short="TEF"
-              description="Tiempo estimado de fabricación por planeación."
-            />
-          }
-        >
-          {X > 0 ? (
-            formatDuration(X)
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </Row>
-
-        {(m.status === "running" || m.status === "paused") && X > 0 && (
-          <div className="mt-2">
-            <div className="h-1.5 w-full rounded-full bg-black/10 overflow-hidden">
-              <div
-                className={cn("h-full transition-all duration-1000", color.bar)}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div
+      >
+        <CardContent className="pl-3 pr-3 pt-0 space-y-2 text-[12px]">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold truncate">
+              <div>{m.name}</div>
+              <div>
+                {m.isMultiSession && (
+                  <span className="text-[9px] text-indigo-600 font-bold uppercase">
+                    Multi-pieza
+                  </span>
+                )}
+              </div>
+            </CardTitle>
+            <span
               className={cn(
-                "mt-1 text-[12px] font-medium leading-tight",
-                color.text,
+                "h-2.5 w-2.5 rounded-full",
+                color.dot,
+                m.status === "running" && "animate-pulse",
+              )}
+            />
+          </div>
+          <StackedRow label="Pieza">
+            {m.piece ? (
+              <strong>{m.piece}</strong>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </StackedRow>
+          <StackedRow label="Operador">
+            {m.operator ? (
+              m.operator.toLowerCase()
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </StackedRow>
+          {m.colaboradores && m.colaboradores.length > 0 && (
+            <>
+              {m.colaboradores.map((nom, idx) => (
+                <div key={idx} className="text-muted-foreground">
+                  {nom.toLowerCase()}
+                </div>
+              ))}
+            </>
+          )}
+          <Row label="Inicio">
+            {(m.status === "running" || m.status === "paused") &&
+            m.startedAt ? (
+              new Date(m.startedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </Row>
+          <Row
+            label={
+              <AcronymLabel
+                short="TRF"
+                description="Tiempo real desde que inició el trabajo."
+              />
+            }
+          >
+            {m.status === "running" || m.status === "paused" ? (
+              formatDuration(elapsed)
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </Row>
+          <Row
+            label={
+              <AcronymLabel
+                short="TEF"
+                description="Tiempo estimado de fabricación por planeación."
+              />
+            }
+          >
+            {X > 0 ? (
+              formatDuration(X)
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </Row>
+
+          {(m.status === "running" || m.status === "paused") && X > 0 && (
+            <div className="mt-2">
+              <div className="h-1.5 w-full rounded-full bg-black/10 overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full transition-all duration-1000",
+                    color.bar,
+                  )}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <div
+                className={cn(
+                  "mt-1 text-[12px] font-medium leading-tight",
+                  color.text,
+                )}
+              >
+                {timingLevel === "on_time" && (
+                  <span className="animate-pulse">
+                    Dentro del tiempo estimado
+                  </span>
+                )}
+                {timingLevel === "over_25" && (
+                  <span>Superó TEF por {formatDuration(exceededMin)}m</span>
+                )}
+                {timingLevel === "over_50" && <span>Excedió 25% del TEF</span>}
+                {timingLevel === "over_50_plus" && (
+                  <span className="font-bold">Exceso crítico (+50%)</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-1">
+            <Badge
+              className={cn(
+                "text-[12px] tracking-tighter h-5",
+                m.status === "running"
+                  ? "bg-emerald-600"
+                  : m.status === "paused"
+                    ? "bg-orange-600"
+                    : m.status === "maintenance"
+                      ? "bg-sky-600"
+                      : "bg-slate-500",
               )}
             >
-              {timingLevel === "on_time" && (
-                <span className="animate-pulse">
-                  Dentro del tiempo estimado
-                </span>
-              )}
-              {timingLevel === "over_25" && (
-                <span>Superó TEF por {formatDuration(exceededMin)}m</span>
-              )}
-              {timingLevel === "over_50" && <span>Excedió 25% del TEF</span>}
-              {timingLevel === "over_50_plus" && (
-                <span className="font-bold">Exceso crítico (+50%)</span>
-              )}
-            </div>
+              {m.status === "running" ? "Trabajando" : m.status.toUpperCase()}
+            </Badge>
           </div>
-        )}
-
-        <div className="pt-1">
-          <Badge
-            className={cn(
-              "text-[12px] tracking-tighter h-5",
-              m.status === "running"
-                ? "bg-emerald-600"
-                : m.status === "paused"
-                  ? "bg-orange-600"
-                  : m.status === "maintenance"
-                    ? "bg-sky-600"
-                    : "bg-slate-500",
-            )}
-          >
-            {m.status === "running" ? "Trabajando" : m.status.toUpperCase()}
-          </Badge>
-        </div>
-      </CardContent>
-    </Card>
-  );
-});
+        </CardContent>
+      </Card>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.m.id === nextProps.m.id &&
+      prevProps.m.status === nextProps.m.status &&
+      prevProps.m.tiempoEfectivoServer === nextProps.m.tiempoEfectivoServer &&
+      prevProps.m.operator === nextProps.m.operator &&
+      prevProps.m.piece === nextProps.m.piece
+    );
+  },
+);
 
 const Row = memo(function Row({
   label,
