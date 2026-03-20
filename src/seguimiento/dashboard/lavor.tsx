@@ -97,7 +97,7 @@ interface GetUsuariosData {
 }
 
 const GET_USUARIO = gql`
-  query GetUsuario($numero: String!, $fecha: Date) {
+  query GetUsuario($numero: String!, $fecha: String) {
     usuario(numero: $numero, fecha: $fecha) {
       id
       nombre
@@ -125,6 +125,7 @@ const GET_USUARIO = gql`
       motivo
     }
     maquina {
+      id
       nombre
     }
     procesoOp {
@@ -175,7 +176,7 @@ export default function LavorPage() {
 
   const selectedEmployeeNumero = currentSelectedNumero || defaultNumero;
 
-  const { data: userData } = useQuery<GetUserData>(GET_USUARIO, {
+  const { data: userData, error } = useQuery<GetUserData>(GET_USUARIO, {
     variables: {
       numero: selectedEmployeeNumero,
       fecha: date ? format(date, "yyyy-MM-dd") : null,
@@ -183,6 +184,8 @@ export default function LavorPage() {
     skip: !selectedEmployeeNumero,
     fetchPolicy: "network-only",
   });
+
+  if (error) console.error("Error de Apollo:", error);
 
   const timelineData = useMemo(() => {
     // 1. Verificación de seguridad: Si no hay datos, retornamos estructura vacía
@@ -360,7 +363,7 @@ export default function LavorPage() {
   }, [projectFilter, currentSelectedNumero]);
 
   const showData = () => {
-    console.log(userData?.usuario?.historialColaboraciones || []);
+    console.log(userData);
   };
 
   return (
