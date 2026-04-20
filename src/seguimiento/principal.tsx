@@ -15,12 +15,21 @@ type ProcessCardData = {
   tiempoReal: number;
 };
 
+type BudgetData = {
+  id: string;
+  area: string;
+  tiempo: number;
+  tiempoReal: number;
+  tiempoRestante: number;
+};
+
 type ProyectoAvance = {
   id: string;
   proyecto: string;
   estimatedTotalMins: number;
   realTotalMins: number;
   progressPct: number;
+  budgets: BudgetData[]; // Nuevo
   procesosAgrupados: ProcessCardData[];
 };
 
@@ -67,6 +76,12 @@ const GET_DATOS = gql`
       proyecto
       estimatedTotalMins
       progressPct
+      budgets {
+        area
+        tiempo
+        tiempoReal
+        tiempoRestante
+      }
       procesosAgrupados {
         nombre
         conteoActual
@@ -131,6 +146,7 @@ export default function ProyectosPage() {
         estimatedTotal: formatDuration(p.estimatedTotalMins),
         real: formatDuration(p.realTotalMins),
         progressPct: p.progressPct,
+        budgets: p.budgets,
         processes: sortedProcesses, // <--- Usamos la lista ya ordenada
       };
     });
@@ -204,7 +220,11 @@ export default function ProyectosPage() {
           )}
           {!error &&
             projects.map((project) => (
-              <ProjectProgressCard key={project.id} project={project} />
+              <ProjectProgressCard
+                key={project.id}
+                project={project}
+                budgets={project.budgets}
+              />
             ))}
         </div>
       </div>
@@ -222,10 +242,23 @@ function getProjectAccentClass(progress: number): string {
 
 const ProjectProgressCard = memo(function ProjectProgressCard({
   project,
+  budgets,
 }: {
   project: any;
+  budgets?: BudgetData[];
 }) {
   const accentClass = getProjectAccentClass(project.progressPct);
+  const budgetMantenimiento = useMemo(() => {
+    return budgets?.find(
+      (b: any) =>
+        b.area.toLowerCase().includes("manufactura") ||
+        b.area.toLowerCase().includes("mantenimiento"),
+    );
+  }, [budgets]);
+
+  const showData = () => {
+    console.log(budgetMantenimiento);
+  };
 
   return (
     <section className="relative pl-3">
@@ -234,7 +267,7 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
       />
       <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-neutral-200 p-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div onClick={showData}>
             <h2 className="text-3xl font-semibold tracking-tight">
               {project.code}
             </h2>
@@ -257,6 +290,42 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
               className="h-6"
               fillClassName={accentClass}
             />
+            <div className="flex">
+              {budgetMantenimiento && (
+                <div className="mt-2 rounded-2xl bg-neutral-50 border border-neutral-100 p-3">
+                  <div className="flex mb-1">
+                    <span className="flex w-full items-center gap-1 justify-center">
+                      <p className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">
+                        Budget {budgetMantenimiento.area}:
+                      </p>
+                      <p className="text-[10px] font-black uppercase text-black tracking-wider ml-2">
+                        {budgetMantenimiento.tiempo}h
+                      </p>
+                    </span>
+                  </div>
+
+                  <div className="flex text-[10px] font-medium text-neutral-500">
+                    <span
+                      className={
+                        "text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"
+                      }
+                    >
+                      Uso: <b>{budgetMantenimiento.tiempoReal}h</b>
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs font-bold px-2 py-0.5 rounded-full ml-3",
+                        budgetMantenimiento.tiempoRestante < 0 // Asegúrate que sea CamelCase
+                          ? "bg-red-100 text-red-600"
+                          : "bg-emerald-100 text-emerald-700",
+                      )}
+                    >
+                      restante: {budgetMantenimiento.tiempoRestante}h
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-6">

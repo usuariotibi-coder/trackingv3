@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { FolderPlus, Save, Trash2, AlertTriangle } from "lucide-react";
@@ -32,6 +32,7 @@ import { sileo } from "sileo";
 // SECCIÓN: CREAR PROYECTO (Sin cambios significativos)
 // ---------------------------------------------------------------------- */
 export function CreateProjectCard() {
+  // 1. Actualizamos la definición de la Mutación GQL
   const CREATE_PROYECTO = gql`
     mutation AgregarNuevoProyecto($input: CrearProyectoInput!) {
       crearProyecto(input: $input) {
@@ -43,21 +44,35 @@ export function CreateProjectCard() {
   `;
 
   const [createProject, { loading }] = useMutation(CREATE_PROYECTO);
+
+  // 2. Estado inicial con los nuevos campos
   const [projectData, setProjectData] = useState({
     nombre: "",
     descripcion: "",
+    budgetManufactura: "",
+    budgetEnsamble: "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async () => {
+    if (!projectData.nombre) return;
     try {
       await createProject({
         variables: {
           input: {
             proyecto: projectData.nombre,
             descripcion: projectData.descripcion,
+            // Convertimos a float para el backend
+            budgetManufactura: parseFloat(projectData.budgetManufactura) || 0,
+            budgetEnsamble: parseFloat(projectData.budgetEnsamble) || 0,
           },
         },
+      });
+      // Limpiar formulario y notificar
+      setProjectData({
+        nombre: "",
+        descripcion: "",
+        budgetManufactura: "",
+        budgetEnsamble: "",
       });
       sileo.success({
         title: "Proyecto creado",
@@ -69,68 +84,94 @@ export function CreateProjectCard() {
           description: "text-white/75!",
         },
       });
-      setProjectData({ nombre: "", descripcion: "" });
     } catch (e: any) {
-      sileo.error({
-        title: "Error",
-        description: e.message,
-        position: "top-center",
-        fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
-      });
+      sileo.error(e.message || "Error al crear proyecto");
     }
   };
 
   return (
-    <Card>
+    <Card className="shadow-lg border-none bg-white/50 backdrop-blur-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FolderPlus className="h-5 w-5" /> Alta de Proyecto
+        <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-800">
+          <FolderPlus className="h-6 w-6 text-blue-600" /> Nuevo Proyecto
         </CardTitle>
         <CardDescription>
-          Define un nuevo proyecto para agrupar Órdenes de Producción.
+          Define el nombre y los presupuestos iniciales
         </CardDescription>
       </CardHeader>
-      <Separator />
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Nombre del Proyecto</Label>
+          <Input
+            id="name"
+            placeholder="Ej: Mantenimiento Prensa Hidráulica"
+            value={projectData.nombre}
+            onChange={(e) =>
+              setProjectData({ ...projectData, nombre: e.target.value })
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="desc">Descripción</Label>
+          <Textarea
+            id="desc"
+            placeholder="Detalles adicionales..."
+            value={projectData.descripcion}
+            onChange={(e) =>
+              setProjectData({ ...projectData, descripcion: e.target.value })
+            }
+          />
+        </div>
+
+        {/* SECCIÓN DE PRESUPUESTOS */}
+        <div className="grid grid-cols-2 gap-4 pt-2">
           <div className="space-y-2">
-            <Label>Nombre del Proyecto</Label>
+            <Label className="text-blue-700 font-semibold">
+              Hrs. Manufactura
+            </Label>
             <Input
-              placeholder="OP-XXXX • Nombre del dispositivo"
-              value={projectData.nombre}
+              type="number"
+              placeholder="0.0"
+              value={projectData.budgetManufactura}
               onChange={(e) =>
-                setProjectData({ ...projectData, nombre: e.target.value })
+                setProjectData({
+                  ...projectData,
+                  budgetManufactura: e.target.value,
+                })
               }
-              required
             />
           </div>
           <div className="space-y-2">
-            <Label>Descripción</Label>
-            <Textarea
-              placeholder="Alcance del proyecto..."
-              rows={3}
-              value={projectData.descripcion}
+            <Label className="text-green-700 font-semibold">
+              Hrs. Ensamble
+            </Label>
+            <Input
+              type="number"
+              placeholder="0.0"
+              value={projectData.budgetEnsamble}
               onChange={(e) =>
-                setProjectData({ ...projectData, descripcion: e.target.value })
+                setProjectData({
+                  ...projectData,
+                  budgetEnsamble: e.target.value,
+                })
               }
             />
           </div>
-          <div className="flex justify-center pt-2">
-            <Button type="submit" className="w-1/2 gap-2" disabled={loading}>
-              {loading ? (
-                <Spinner />
-              ) : (
-                <>
-                  <Save className="h-4 w-4" /> Guardar Proyecto
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+        </div>
+
+        <Button
+          className="w-full mt-4 bg-blue-600 hover:bg-blue-700 font-bold"
+          onClick={handleCreate}
+          disabled={loading || !projectData.nombre}
+        >
+          {loading ? (
+            <Spinner className="mr-2" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
+          Crear Proyecto
+        </Button>
       </CardContent>
     </Card>
   );
