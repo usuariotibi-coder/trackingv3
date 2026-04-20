@@ -29,8 +29,9 @@ type ProyectoAvance = {
   estimatedTotalMins: number;
   realTotalMins: number;
   progressPct: number;
-  budgets: BudgetData[]; // Nuevo
+  budgets: BudgetData[];
   procesosAgrupados: ProcessCardData[];
+  budgetEspecifico?: BudgetData;
 };
 
 type GetAvanceProyectosQuery = {
@@ -77,6 +78,7 @@ const GET_DATOS = gql`
       estimatedTotalMins
       progressPct
       budgets {
+        id
         area
         tiempo
         tiempoReal
@@ -88,6 +90,12 @@ const GET_DATOS = gql`
         metaTotal
         tiempoEstimado
         tiempoReal
+        budgetEspecifico {
+          id
+          tiempo
+          tiempoReal
+          tiempoRestante
+        }
       }
     }
   }
@@ -126,6 +134,7 @@ export default function ProyectosPage() {
         total: pr.metaTotal,
         estimated: formatDuration(pr.tiempoEstimado),
         realTotal: formatDuration(p.realTotalMins),
+        budgetEspecifico: pr.budgetEspecifico,
       }));
 
       // 2. Ordenamos los procesos según DESIRED_PROCESS_ORDER
@@ -147,11 +156,10 @@ export default function ProyectosPage() {
         real: formatDuration(p.realTotalMins),
         progressPct: p.progressPct,
         budgets: p.budgets,
-        processes: sortedProcesses, // <--- Usamos la lista ya ordenada
+        processes: sortedProcesses,
       };
     });
 
-    // Ordenamiento de los proyectos (las filas grandes)
     return [...formatted].sort((a, b) => {
       if (sortBy === "progress") return b.progressPct - a.progressPct;
       if (sortBy === "urgency") return a.progressPct - b.progressPct;
@@ -256,10 +264,6 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
     );
   }, [budgets]);
 
-  const showData = () => {
-    console.log(budgetMantenimiento);
-  };
-
   return (
     <section className="relative pl-3">
       <div
@@ -267,7 +271,7 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
       />
       <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-neutral-200 p-6 lg:flex-row lg:items-start lg:justify-between">
-          <div onClick={showData}>
+          <div>
             <h2 className="text-3xl font-semibold tracking-tight">
               {project.code}
             </h2>
@@ -348,22 +352,57 @@ const ProcessProgressCard = memo(function ProcessProgressCard({
       ? Math.round((process.completed / process.total) * 100)
       : 0;
 
+  const bgtEspecífico = process.budgetEspecifico;
+
+  const esExceso = bgtEspecífico && bgtEspecífico.tiempoRestante < 0;
+
+  const showDataE = () => {
+    console.log(bgtEspecífico);
+  };
+
   return (
-    <article className="flex h-24 flex-col justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-      <div className="flex justify-between items-start gap-2">
-        <h3 className="truncate text-[10px] font-bold uppercase text-neutral-500">
+    <article className="flex h-auto flex-col gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3 shadow-sm">
+      <div className="flex justify-between items-center gap-2">
+        <h3
+          className="truncate text-[10px] font-black uppercase text-neutral-400 tracking-tight"
+          onClick={showDataE}
+        >
           {process.name}
         </h3>
-        <span className="text-[10px] font-bold bg-neutral-200 px-1.5 rounded">
-          {process.completed}/{process.total}
-        </span>
+
+        {/* Muestra el budget del proceso solo si existe */}
+        {bgtEspecífico && (
+          <span
+            className={cn(
+              "text-[10px] font-bold px-1.5 py-0.5 rounded-full border",
+              esExceso
+                ? "bg-red-50 border-red-200 text-red-600"
+                : "bg-emerald-50 border-emerald-200 text-emerald-600",
+            )}
+          >
+            {/* Si es negativo aparecerá con el menos automáticamente por el backend */}
+            budget: {bgtEspecífico.tiempoRestante}h
+          </span>
+        )}
       </div>
-      <div className="space-y-1">
-        <div className="flex justify-between text-[10px] font-semibold text-neutral-600">
+
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-[10px] font-bold text-neutral-600">
           <span>TEF: {process.estimated}</span>
-          <span className="text-emerald-600">TRF: {process.real}</span>
+          <span className="text-emerald-600 font-black">
+            TRF: {process.real}
+          </span>
         </div>
-        <ProgressBar value={pct} />
+
+        <ProgressBar value={pct} className="h-1.5" />
+
+        <div className="flex justify-between items-center text-[8px] font-medium text-neutral-400">
+          <span>
+            {process.completed} de {process.total} piezas
+          </span>
+          {/* Si hay budget, mostramos la meta asignada al proceso */}
+          {bgtEspecífico && <span>Meta: {bgtEspecífico.tiempo}h</span>}
+        </div>
       </div>
     </article>
   );
