@@ -94,6 +94,16 @@ export function CreateProjectCard() {
       setNombre("");
       setDescripcion("");
       setBudgets([{ area: "corte", tiempo: "" }]);
+      sileo.success({
+        title: "Proyecto creado",
+        description: `Proyecto '${nombre}' creado exitosamente.`,
+        position: "top-center",
+        fill: "black",
+        styles: {
+          title: "text-white!",
+          description: "text-white/75!",
+        },
+      });
     } catch (e) {
       console.error(e);
     }
