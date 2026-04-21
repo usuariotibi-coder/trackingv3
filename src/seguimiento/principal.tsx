@@ -40,12 +40,20 @@ type GetAvanceProyectosQuery = {
 
 // --- Helpers ---
 
+// principal.tsx
+
 const formatDuration = (totalMinutes: number): string => {
-  const roundedMins = Math.round(totalMinutes);
-  if (roundedMins < 60) return `${roundedMins}m`;
-  const hours = Math.floor(roundedMins / 60);
-  const mins = roundedMins % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  const isNegative = totalMinutes < 0;
+  const absMins = Math.round(Math.abs(totalMinutes));
+
+  if (absMins === 0) return "0m";
+
+  const hours = Math.floor(absMins / 60);
+  const mins = absMins % 60;
+  const sign = isNegative ? "-" : "";
+
+  if (hours === 0) return `${sign}${mins}m`;
+  return mins > 0 ? `${sign}${hours}h ${mins}m` : `${sign}${hours}h`;
 };
 
 const normalize = (s: string) =>
@@ -76,6 +84,7 @@ const GET_DATOS = gql`
       id
       proyecto
       estimatedTotalMins
+      realTotalMins
       progressPct
       budgets {
         id
@@ -133,7 +142,7 @@ export default function ProyectosPage() {
         completed: pr.conteoActual,
         total: pr.metaTotal,
         estimated: formatDuration(pr.tiempoEstimado),
-        realTotal: formatDuration(p.realTotalMins),
+        realTotal: formatDuration(pr.tiempoReal),
         budgetEspecifico: pr.budgetEspecifico,
       }));
 
@@ -190,11 +199,20 @@ export default function ProyectosPage() {
     [],
   );
 
+  const showDataG = () => {
+    console.log(projects.map((p) => ({ code: p.code, progress: p.processes })));
+  };
+
   return (
     <div className="min-h-screen bg-white px-5 py-10 text-neutral-900 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Proyectos</h1>
+          <h1
+            className="text-3xl font-semibold tracking-tight"
+            onClick={showDataG}
+          >
+            Proyectos
+          </h1>
           <div className="flex w-full items-center justify-between">
             <p className="mt-1 text-sm text-neutral-600">
               Visualización en tiempo real de avance y métricas de tiempo por
@@ -280,7 +298,7 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
                 TEF: <strong>{project.estimatedTotal}</strong>
               </span>
               <span>
-                TRF: <strong>{project.realTotal}</strong>
+                TRF: <strong>{project.real}</strong>
               </span>
             </div>
           </div>
@@ -314,7 +332,7 @@ const ProjectProgressCard = memo(function ProjectProgressCard({
                         "text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"
                       }
                     >
-                      Uso: <b>{budgetMantenimiento.tiempoReal}h</b>
+                      Uso: <b>{budgetMantenimiento.tiempoRestante}h</b>
                     </span>
                     <span
                       className={cn(
@@ -352,26 +370,20 @@ const ProcessProgressCard = memo(function ProcessProgressCard({
       ? Math.round((process.completed / process.total) * 100)
       : 0;
 
-  const bgtEspecífico = process.budgetEspecifico;
+  const bgt = process.budgetEspecifico;
 
-  const esExceso = bgtEspecífico && bgtEspecífico.tiempoRestante < 0;
-
-  const showDataE = () => {
-    console.log(bgtEspecífico);
-  };
+  const restanteMins = bgt ? bgt.tiempoRestante * 60 : 0;
+  const esExceso = bgt ? bgt.tiempoRestante < 0 : false;
 
   return (
     <article className="flex h-auto flex-col gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3 shadow-sm">
-      <div className="flex justify-between items-center gap-2">
-        <h3
-          className="truncate text-[10px] font-black uppercase text-neutral-400 tracking-tight"
-          onClick={showDataE}
-        >
+      <div className="justify-between items-center gap-2">
+        <h3 className="truncate text-[10px] font-black uppercase text-neutral-400 tracking-tight">
           {process.name}
         </h3>
 
-        {/* Muestra el budget del proceso solo si existe */}
-        {bgtEspecífico && (
+        {/* ETIQUETA DE BALANCE FORMATEADA */}
+        {bgt && (
           <span
             className={cn(
               "text-[10px] font-bold px-1.5 py-0.5 rounded-full border",
@@ -380,8 +392,8 @@ const ProcessProgressCard = memo(function ProcessProgressCard({
                 : "bg-emerald-50 border-emerald-200 text-emerald-600",
             )}
           >
-            {/* Si es negativo aparecerá con el menos automáticamente por el backend */}
-            budget: {bgtEspecífico.tiempoRestante}h
+            {/* Usamos formatDuration con los minutos calculados */}
+            Budget: {formatDuration(restanteMins)}
           </span>
         )}
       </div>
@@ -390,7 +402,7 @@ const ProcessProgressCard = memo(function ProcessProgressCard({
         <div className="flex justify-between text-[10px] font-bold text-neutral-600">
           <span>TEF: {process.estimated}</span>
           <span className="text-emerald-600 font-black">
-            TRF: {process.real}
+            TRF: {process.realTotal}
           </span>
         </div>
 
@@ -400,8 +412,8 @@ const ProcessProgressCard = memo(function ProcessProgressCard({
           <span>
             {process.completed} de {process.total} piezas
           </span>
-          {/* Si hay budget, mostramos la meta asignada al proceso */}
-          {bgtEspecífico && <span>Meta: {bgtEspecífico.tiempo}h</span>}
+          {/* Opcional: mostrar la meta en formato duración también */}
+          {bgt && <span>Meta: {formatDuration(bgt.tiempo * 60)}</span>}
         </div>
       </div>
     </article>

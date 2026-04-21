@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
-import { FolderPlus, Save, Trash2, AlertTriangle } from "lucide-react";
+import { FolderPlus, Save, Trash2, AlertTriangle, Plus } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -31,147 +31,177 @@ import { sileo } from "sileo";
 /* ----------------------------------------------------------------------
 // SECCIÓN: CREAR PROYECTO (Sin cambios significativos)
 // ---------------------------------------------------------------------- */
+
 export function CreateProjectCard() {
-  // 1. Actualizamos la definición de la Mutación GQL
+  const [nombre, setNombre] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+
+  // Estado para los budgets dinámicos
+  const [budgets, setBudgets] = useState([{ area: "corte", tiempo: "" }]);
+
+  const AREAS_OPCIONES = [
+    "Manufactura",
+    "corte",
+    "escuadre",
+    "programacion cnc",
+    "maquinado cnc",
+    "paileria",
+    "pintura",
+    "calidad",
+    "almacen",
+  ];
+
   const CREATE_PROYECTO = gql`
     mutation AgregarNuevoProyecto($input: CrearProyectoInput!) {
       crearProyecto(input: $input) {
         id
         proyecto
-        descripcion
       }
     }
   `;
 
   const [createProject, { loading }] = useMutation(CREATE_PROYECTO);
 
-  // 2. Estado inicial con los nuevos campos
-  const [projectData, setProjectData] = useState({
-    nombre: "",
-    descripcion: "",
-    budgetManufactura: "",
-    budgetEnsamble: "",
-  });
+  // Handlers para las filas
+  const addBudgetRow = () =>
+    setBudgets([...budgets, { area: "corte", tiempo: "" }]);
 
-  const handleCreate = async () => {
-    if (!projectData.nombre) return;
+  const removeBudgetRow = (index: number) => {
+    setBudgets(budgets.filter((_, i) => i !== index));
+  };
+
+  const updateBudget = (index: number, field: string, value: string) => {
+    const newBudgets = [...budgets];
+    newBudgets[index] = { ...newBudgets[index], [field]: value };
+    setBudgets(newBudgets);
+  };
+
+  const handleSave = async () => {
     try {
       await createProject({
         variables: {
           input: {
-            proyecto: projectData.nombre,
-            descripcion: projectData.descripcion,
-            // Convertimos a float para el backend
-            budgetManufactura: parseFloat(projectData.budgetManufactura) || 0,
-            budgetEnsamble: parseFloat(projectData.budgetEnsamble) || 0,
+            proyecto: nombre,
+            descripcion: descripcion,
+            // Enviamos los budgets filtrando los que no tienen tiempo
+            budgets: budgets
+              .filter((b) => b.tiempo !== "")
+              .map((b) => ({ area: b.area, tiempo: parseFloat(b.tiempo) })),
           },
         },
       });
-      // Limpiar formulario y notificar
-      setProjectData({
-        nombre: "",
-        descripcion: "",
-        budgetManufactura: "",
-        budgetEnsamble: "",
-      });
-      sileo.success({
-        title: "Proyecto creado",
-        description: `Proyecto '${projectData.nombre}' creado exitosamente.`,
-        position: "top-center",
-        fill: "black",
-        styles: {
-          title: "text-white!",
-          description: "text-white/75!",
-        },
-      });
-    } catch (e: any) {
-      sileo.error(e.message || "Error al crear proyecto");
+      // Limpiar campos tras éxito
+      setNombre("");
+      setDescripcion("");
+      setBudgets([{ area: "corte", tiempo: "" }]);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   return (
-    <Card className="shadow-lg border-none bg-white/50 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl font-bold text-slate-800">
-          <FolderPlus className="h-6 w-6 text-blue-600" /> Nuevo Proyecto
+    <Card className="shadow-md border-neutral-200">
+      <CardHeader className="bg-neutral-50/50">
+        <CardTitle className="text-xl flex items-center gap-2">
+          <FolderPlus className="h-5 w-5 text-blue-600" />
+          Nuevo Proyecto
         </CardTitle>
-        <CardDescription>
-          Define el nombre y los presupuestos iniciales
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Nombre del Proyecto</Label>
-          <Input
-            id="name"
-            placeholder="Ej: Mantenimiento Prensa Hidráulica"
-            value={projectData.nombre}
-            onChange={(e) =>
-              setProjectData({ ...projectData, nombre: e.target.value })
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="desc">Descripción</Label>
-          <Textarea
-            id="desc"
-            placeholder="Detalles adicionales..."
-            value={projectData.descripcion}
-            onChange={(e) =>
-              setProjectData({ ...projectData, descripcion: e.target.value })
-            }
-          />
-        </div>
-
-        {/* SECCIÓN DE PRESUPUESTOS */}
-        <div className="grid grid-cols-2 gap-4 pt-2">
-          <div className="space-y-2">
-            <Label className="text-blue-700 font-semibold">
-              Hrs. Manufactura
-            </Label>
+      <CardContent className="pt-6 space-y-6">
+        {/* Campos básicos */}
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nombre del Proyecto</Label>
             <Input
-              type="number"
-              placeholder="0.0"
-              value={projectData.budgetManufactura}
-              onChange={(e) =>
-                setProjectData({
-                  ...projectData,
-                  budgetManufactura: e.target.value,
-                })
-              }
+              id="name"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej: Estructura Torre A"
             />
           </div>
-          <div className="space-y-2">
-            <Label className="text-green-700 font-semibold">
-              Hrs. Ensamble
-            </Label>
-            <Input
-              type="number"
-              placeholder="0.0"
-              value={projectData.budgetEnsamble}
-              onChange={(e) =>
-                setProjectData({
-                  ...projectData,
-                  budgetEnsamble: e.target.value,
-                })
-              }
+          <div className="grid gap-2">
+            <Label htmlFor="desc">Descripción</Label>
+            <Textarea
+              id="desc"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
             />
           </div>
         </div>
 
-        <Button
-          className="w-full mt-4 bg-blue-600 hover:bg-blue-700 font-bold"
-          onClick={handleCreate}
-          disabled={loading || !projectData.nombre}
-        >
-          {loading ? (
-            <Spinner className="mr-2" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Crear Proyecto
-        </Button>
+        <Separator />
+
+        {/* Sección de Budgets */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Presupuestos por Área (Horas)</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addBudgetRow}
+              className="h-8 gap-1 text-xs"
+            >
+              <Plus className="h-3 w-3" /> Añadir Fila
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {budgets.map((b, index) => (
+              <div key={index} className="flex items-center gap-2 group">
+                {/* Selector de Área */}
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+                  value={b.area}
+                  onChange={(e) => updateBudget(index, "area", e.target.value)}
+                >
+                  {AREAS_OPCIONES.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Input de Tiempo */}
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  className="w-32"
+                  value={b.tiempo}
+                  onChange={(e) =>
+                    updateBudget(index, "tiempo", e.target.value)
+                  }
+                />
+
+                {/* Botón Eliminar */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-neutral-400 hover:text-red-600"
+                  onClick={() => removeBudgetRow(index)}
+                  disabled={budgets.length === 1}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="w-full flex justify-center">
+          <Button
+            className="w-1/2 bg-blue-600 hover:bg-blue-700 h-11 font-bold"
+            onClick={handleSave}
+            disabled={loading || !nombre}
+          >
+            {loading ? (
+              <Spinner className="mr-2" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Guardar Proyecto y Presupuestos
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
