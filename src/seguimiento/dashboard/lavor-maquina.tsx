@@ -253,6 +253,62 @@ export default function LavorMaquinaPage() {
     setCurrentPage(1);
   }, [selectedMaquinaId]);
 
+  const exportToCSV = () => {
+    if (!timelineData.intervals.length) return;
+
+    // 1. Definir encabezados
+    const headers = [
+      "Hora Inicio",
+      "Hora Fin",
+      "Operador",
+      "Nomina",
+      "Proyecto",
+      "Operacion",
+      "Estimado (min)",
+      "Real (min)",
+      "Diferencia (min)",
+      "Pausas (min)",
+    ];
+
+    // 2. Transformar filas
+    const rows = timelineData.intervals.map((itv) => {
+      const totalPausas = itv.pausas.reduce(
+        (acc, p) => acc + p.duracionMinutos,
+        0,
+      );
+      const diff = itv.minutes - itv.tiempoEstimado;
+
+      return [
+        format(new Date(itv.start), "yyyy-MM-dd HH:mm"),
+        itv.end ? format(new Date(itv.end), "yyyy-MM-dd HH:mm") : "Activo",
+        `"${itv.operadorNombre}"`, // Comillas por si el nombre tiene comas
+        itv.operadorNumero,
+        `"${itv.proyecto}"`,
+        `"${itv.operacion}"`,
+        itv.tiempoEstimado,
+        itv.minutes,
+        diff,
+        totalPausas,
+      ];
+    });
+
+    // 3. Crear contenido y disparar descarga
+    const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `Reporte_Maquina_${maquinaData?.maquina?.nombre || "General"}_${format(new Date(), "yyyyMMdd")}.csv`,
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 px-6 py-10">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -371,7 +427,13 @@ export default function LavorMaquinaPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Log de Actividades</CardTitle>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={exportToCSV}
+              disabled={!timelineData.intervals.length}
+            >
               <Download className="h-4 w-4" /> Reporte Técnico
             </Button>
           </CardHeader>
