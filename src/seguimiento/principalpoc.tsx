@@ -106,30 +106,36 @@ export default function ProyectosPagePOC() {
 
   // --- Lógica de Agrupación para la Gráfica ---
   const chartData = useMemo(() => {
-    if (!data || !data.proyectosAvance) return [];
+    if (!data?.proyectosAvance) return [];
 
-    // 1. Inicializar el acumulador con los códigos permitidos
-    const groups: Record<string, { group: string; tef: number; trf: number }> =
-      {};
+    const groups: Record<
+      string,
+      { group: string; tef: number; trf: number; budget: number }
+    > = {};
+
     ALLOWED_CODES.forEach((code) => {
-      groups[code] = { group: code, tef: 0, trf: 0 };
+      groups[code] = { group: code, tef: 0, trf: 0, budget: 0 };
     });
 
-    // 2. Agrupar y Sumar
-    data.proyectosAvance.forEach((p: any) => {
+    data.proyectosAvance.forEach((p: ProyectoAvance) => {
       const codeMatch = p.proyecto.substring(0, 4);
 
       if (groups[codeMatch]) {
         groups[codeMatch].tef += p.estimatedTotalMins || 0;
         groups[codeMatch].trf += p.realTotalMins || 0;
+
+        // Sumamos el tiempo de todos los budgets asociados al proyecto
+        const totalBudgetMins =
+          p.budgets?.reduce((acc, b) => acc + (b.tiempo || 0), 0) || 0;
+        groups[codeMatch].budget += totalBudgetMins;
       }
     });
 
-    // 3. Convertir a array y convertir minutos a horas (opcional, para mejor lectura)
     return Object.values(groups).map((g) => ({
       ...g,
-      tef: Math.round(g.tef / 60), // Convertimos a horas para la gráfica
+      tef: Math.round(g.tef / 60),
       trf: Math.round(g.trf / 60),
+      budget: Math.round(g.budget / 60), // También en horas
     }));
   }, [data]);
 
@@ -137,7 +143,7 @@ export default function ProyectosPagePOC() {
     <div className="min-h-screen bg-white px-5 py-10 text-neutral-900 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight">POCS</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">POCs</h1>
           <p className="mt-1 text-sm text-neutral-600">
             Comparativa de Tiempo Estimado (TEF) vs Tiempo Real (TRF) en horas
             por clave.
@@ -155,49 +161,36 @@ export default function ProyectosPagePOC() {
                 vertical={false}
                 stroke="#e5e5e5"
               />
-              <XAxis
-                dataKey="group"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#666", fontSize: 12 }}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#666", fontSize: 12 }}
-                label={{ value: "Horas", angle: -90, position: "insideLeft" }}
-              />
-              <Tooltip
-                cursor={{ fill: "#f5f5f5" }}
-                contentStyle={{
-                  borderRadius: "8px",
-                  border: "none",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                }}
-              />
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                wrapperStyle={{ paddingBottom: "20px" }}
+              <XAxis dataKey="group" axisLine={false} tickLine={false} />
+              <YAxis axisLine={false} tickLine={false} />
+              <Tooltip />
+              <Legend verticalAlign="top" align="right" />
+
+              {/* Columna 1: Budget (puedes usar un tono gris o neutro para la base) */}
+              <Bar
+                name="Presupuesto"
+                dataKey="budget"
+                fill="#94a3b8"
+                radius={[4, 4, 0, 0]}
+                barSize={20}
               />
 
-              {/* Barra TEF (Azul/Neutral) */}
+              {/* Columna 2: TEF */}
               <Bar
                 name="TEF (Estimado)"
                 dataKey="tef"
                 fill="#6e0f78"
                 radius={[4, 4, 0, 0]}
-                barSize={30}
+                barSize={20}
               />
 
-              {/* Barra TRF (Naranja/Rojo si excede) */}
+              {/* Columna 3: TRF */}
               <Bar
                 name="TRF (Real)"
                 dataKey="trf"
                 fill="#CD0037"
                 radius={[4, 4, 0, 0]}
-                barSize={30}
+                barSize={20}
               />
             </BarChart>
           </ResponsiveContainer>
