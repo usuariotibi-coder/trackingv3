@@ -40,8 +40,6 @@ type GetAvanceProyectosQuery = {
 
 // --- Helpers ---
 
-// principal.tsx
-
 const formatDuration = (totalMinutes: number): string => {
   const isNegative = totalMinutes < 0;
   const absMins = Math.round(Math.abs(totalMinutes));
